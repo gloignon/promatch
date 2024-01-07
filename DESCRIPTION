@@ -1,0 +1,27 @@
+Package: promatch
+Type: Shiny
+Title: GUI for the MatchIt package
+Version: 0.1.0
+Authors@R:
+    person("Loignon", "Guillaume", email = "loignon.guillaume@uqam.ca", role = c("aut", "cre"))
+Description: This is a simple Rshiny that provides a GUI to the MatchIt package.
+    Only the basic functions of MatchIt are implemented.
+License: Open whatever
+Encoding: UTF-8
+LazyData: true
+Imports:
+    shiny,
+    shinyjs,
+    readxl,
+    MatchIt,
+    optmatch,
+    rpart,
+    mgcv,
+    glmnet,
+    shiny.i18n
+Remotes:
+    # If you use GitHub packages, they can be listed here
+Suggests:
+    # Packages that are not essential but might be used in examples
+    # or additional functionality
+Config/testthat/edition: 3

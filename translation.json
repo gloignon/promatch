@@ -1,0 +1,26 @@
+{
+  "cultural_date_format": "%d-%m-%Y",
+  "languages": ["en", "fr"],
+  "translation": [
+    {"en": "Changer la langue", "fr":  "Change language"},
+    {"en": "Matching", "fr": "Appariement"},
+    {"en": "Help / About", "fr": "Aide / À propos"},
+    {"en": "Matching Method", "fr": "Méthode de pairage"},
+    {"en": "Download Matched CSV", "fr": "Télécharger le CSV de pairage"},
+    {"en": "Choose CSV or Excel (.xlsx) File", "fr": "Choisir le fichier CSV ou Excel (.xlsx)"},
+    {"en": "Distance Measure", "fr": "Mesure de distance"},
+    {"en": "Match", "fr": "Pairer"},
+    {"en": "Select Treatment (Group) Variable", "fr": "Choisir la variable de traitement (regroupement)"},
+    {"en": "Select Covariates", "fr": "Choisir les covariables"},
+    {"en": "Please wait, the matching process is running...", "fr": "Veuillez patienter, l'appariement est en cours..."},
+    {"en": "Matching in Progress", "fr": "Appariement en cours"},
+    {"en": "Success", "fr": "Succès"},
+    {"en": "Done! The matching is complete. You can now download the matched data.", "fr": "Voilà! L'appariement est terminé. Vous pouvez télécharger les données appariées."},
+    {"en": "Error", "fr": "Erreur"},
+    {"en": "No matched data available for download.", "fr": "Le résultat de l'appariement n'est pas disponibles pour le téléchargement."},
+    {"en": "The treatment variable must have exactly two levels to perform matching.", "fr": "La variable de traitement doit avoir exactement deux niveaux pour effectuer le pairage."},
+    {"en": "Select Exact matching variables (optional)", "fr": "Choisir les variables d'appariement exact (facultatif)"},
+    {"en": "This will upload your file.", "fr": "Cette boite va téléverser votre fichier."}
+
+  ]
+}

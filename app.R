@@ -11,6 +11,8 @@
 #   ajout exact matching parameter
 # - 2023-01-07
 #   ajout fichier about / aide et son affichage bilingue
+#   déménagement vers github
+#   largeur d'affichage fixée à max 950 px
 
 library(shiny)
 library(shinyjs)
@@ -34,7 +36,8 @@ i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
 
 # Define UI
-ui <- fluidPage(
+ui <- fluidPage(title = "promatch",
+
   tags$head(tags$style(
     HTML(
       "
@@ -46,7 +49,8 @@ ui <- fluidPage(
       }
       .info-icon:hover {
         color: #0056b3; /* Darker shade when hovering, like a link */
-      }"
+      }
+      .container-fluid {  max-width: 950px; }"
     )
   )),
   
@@ -117,9 +121,17 @@ ui <- fluidPage(
     ),
     # fin onglet matching
     tabPanel(i18n$t("Help / About"),
-             mainPanel(width = 12,
-               uiOutput("about_content")
+             fluidRow(
+               column(
+                 width = 8,
+                 offset = 2,
+                 uiOutput("about_content")
+                 
+               )
              )
+             # mainPanel(width = 10,
+             #  
+             # )
     )
     )  # fin onglets 
 )  # fin UI

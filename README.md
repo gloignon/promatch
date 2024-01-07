@@ -1,2 +1,2 @@
 # promatch
-Promatch is an RShiny web app that allows you to access some of the basic functionalities of the powerful R package, MatchIt. 
+Promatch is a simple RShiny web app that gives access to the basic functionalities of the powerful R package, MatchIt. 

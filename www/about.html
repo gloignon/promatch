@@ -1,0 +1,40 @@
+
+<h2>About the promatch Shiny App</h2>
+    <p>
+        Promatch an intuitive web application that allows you to access some of the basic functionalities of the powerful R package, <a href = "https://cran.r-project.org/web/packages/MatchIt/index.html">MatchIt</a>. This application is designed to simplify the process of statistical matching, making it accessible to both statisticians and non-statisticians alike. It was created by <a href = "https://professeurs.uqam.ca/professeur/loignon.guillaume/">Prof. Guillaume Loignon</a> from University of Quebec in Montreal.
+    </p>
+    <p>
+        <strong>What is MatchIt?</strong><br>
+        MatchIt is a comprehensive package for the R statistical language, created by Daniel Ho and colleagues. It is used for pre-processing data for causal inference through statistical matching methods. It improves the quality of inference by reducing model dependence and bias in estimation. There is a 2011 paper describing the package in details, see also the recommendations described in an article by Ho et al. (2017), both are linked in the Bibliography below.
+    </p>
+     <p>
+        <strong>Citations</strong><br>
+        If you use the promatch app for a publication, please cite the MatchIt paper in the Journal of Statistical Software (see Bibliography below). There is currently no paper describing promatch itself - you can use the following:
+        
+        <blockquote>Loignon, G. (2023). ProMatch. https://gloignon.shinyapps.io/promatch/</blockquote>
+
+    </p>  
+    
+<h2>Help!</h2>
+    <p>
+        <strong>How does it work?</strong><br>
+    </p>
+        <ol>
+          <li>Select your dataset. Click Browse, then select the .csv or .xlsx file on your computer. The file will upload.
+          </li>
+          <li>Select your variables. Fields will appear to let you select the treatment (grouping, or pairing) variable, covariates, and optional exact matching variables. The <strong>treatment variable</strong> needs to be a binary (dichotomous) variable; it is what divides your data into two groups for comparison. The <strong>covariates</strong> are variables that you suspect or know have an influence on the outcome but are not the primary focus of the study. These might include demographic factors like age and gender, or other background variables. In the context of matching, covariates are used to adjust the groups so that they are comparable on these background characteristics. The <strong>Exact Matching Variables</strong> are optional and used when you want to ensure that matched units are identical on certain key characteristics. When you use exact matching, the algorithm will only match units that have the exact same value on these variables.
+          </li>
+          <li>Select the Matching Method</li>
+          <li>Select the Distance Measure</li>
+          <li>Click the Match button to start the matching process. A message will appear to confirm that it's working.</li>
+          <li>Click the Download Matched CSV to download the resulting paired data. This button will be disabled unless there is actual pairing data available for download. A box will display information about the quality of the matching, this is a direct output from R's summary() function applied to the matching object.</li>
+        </ol>
+
+<h2>Bibliography</h2>
+<ul>
+    <li>
+        Ho DE, Imai K, King G, Stuart EA. Matching as Nonparametric Preprocessing for Reducing Model Dependence in Parametric Causal Inference. <em>Political Analysis</em>. 2007;15(3):199-236. <a href = "https://cran.r-project.org/web/packages/MatchIt/index.html">doi:10.1093/pan/mpl013</a>
+    </li>
+    <li>Ho D, Imai K, King G, Stuart E (2011). “MatchIt: Nonparametric Preprocessing for Parametric Causal Inference.” Journal of Statistical Software, 42(8), 1–28. <a href = "https://www.jstatsoft.org/article/view/v042i08">doi:10.18637/jss.v042.i08</a>
+    </li>
+</ul>

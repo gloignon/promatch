@@ -1,0 +1,40 @@
+
+<h2>À propos de l'application promatch</h2>
+    <p>
+        Promatch est une application web permettant d'accéder aux fonctionnalités de base de la librairie <a href = "https://cran.r-project.org/web/packages/MatchIt/index.html">MatchIt</a> pour le langage statistique R. Le but est de simplifier l'utilisation de techniques d'appariement statistique afin de les rendre accessibles aux non-spécialistes. L'appli a été créée par le <a href = "https://professeurs.uqam.ca/professeur/loignon.guillaume/">Prof. Guillaume Loignon</a> de l'Université du Québec à Montréal.
+    </p>
+    <p>
+        <strong>Qu'est-ce que MatchIt?</strong><br>
+        MatchIt est une librairie pour le langage statistique R créée par Daniel Ho et ses collègues. MatchIt sert au prétraitement des données en vue d'une inférence causale par le biais de méthodes d'appariement statistique. Il améliore la qualité de l'inférence en réduisant l'influence indésirable de covaraibles. Il existe un article de 2011 décrivant le package en détail, voir aussi les recommandations décrites dans un article de Ho et al. (2017), les deux articles sont indiqués dans la Bibliographie ci-dessous.
+    </p>
+     <p>
+        <strong>Citations</strong><br>
+        Si vous utilisez l'application promatch pour une publication, veuillez citer l'article MatchIt dans le Journal of Statistical Software (voir la bibliographie ci-dessous). Il n'existe actuellement aucun article décrivant l'appli promatch en tant que telle - vous pouvez utiliser la référence suivante :
+        
+        <blockquote>Loignon, G. (2023). ProMatch. https://gloignon.shinyapps.io/promatch/</blockquote>
+
+    </p>  
+    
+<h2>Aide</h2>
+    <p>
+        <strong>Comment utiliser promatch ?</strong><br>
+    </p>
+        <ol>
+          <li>Sélectionnez le fichier contenant votre jeu de données. Cliquez sur Parcourir, puis sélectionnez le fichier .csv ou .xlsx sur votre ordinateur. Le fichier sera téléchargé.
+          </li>
+          <li>Sélectionnez vos variables. Après avoir sélectionné votre fichier, des champs vont apparaitre pour vous permettre de sélectionner la variable de traitement (regroupement), les covariables, et les variables d'appariement exact (facultatives). La <strong>variable de traitement</strong> doit être une variable binaire (dichotomique) ; c'est elle qui divise vos données en deux groupes pour la comparaison. Les <strong>covariables</strong> sont des variables que vous soupçonnez ou savez avoir une influence sur le résultat, mais qui ne sont pas le principal objet de l'étude. Cela pourrait inclure des facteurs démographiques comme l'âge et le sexe, ou d'autres variables de fond. Dans le contexte de l'appariement, les covariables sont utilisées pour ajuster les groupes afin qu'ils soient comparables sur ces caractéristiques de fond. Les <strong>Variables d'Appariement Exact</strong> sont optionnelles et utilisées lorsque vous souhaitez vérifier que les individus appariés soient soient identiques sur certaines caractéristiques clés. Lorsque vous utilisez l'appariement exact, l'algorithme va apparier des individus ayant exactement la même valeur pour ces variables.
+          </li>
+          <li>Sélectionner la méthode d'appariement.</li>
+          <li>Sélectionner la mesure de distance.</li>
+          <li>Click the Match button to start the matching process. A message will appear to confirm that it's working.</li>
+          <li>Cliquez sur le bouton Télécharger le CSV apparié pour télécharger les données appariées résultantes. Ce bouton sera désactivé si les données d'appariement ne sont pas disponibles pour le téléchargement. Une boîte affiche des informations sur la qualité de l'appariement. Il s'agit d'une sortie directe de la fonction summary() de R appliquée à l'objet d'appariement.</li>
+        </ol>
+
+<h2>Bibliographie</h2>
+<ul>
+    <li>
+        Ho DE, Imai K, King G, Stuart EA. Matching as Nonparametric Preprocessing for Reducing Model Dependence in Parametric Causal Inference. <em>Political Analysis</em>. 2007;15(3):199-236. <a href = "https://cran.r-project.org/web/packages/MatchIt/index.html">doi:10.1093/pan/mpl013</a>
+    </li>
+    <li>Ho D, Imai K, King G, Stuart E (2011). “MatchIt: Nonparametric Preprocessing for Parametric Causal Inference.” Journal of Statistical Software, 42(8), 1–28. <a href = "https://www.jstatsoft.org/article/view/v042i08">doi:10.18637/jss.v042.i08</a>
+    </li>
+</ul>

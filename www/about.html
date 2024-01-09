@@ -20,7 +20,7 @@
         <strong>How does it work?</strong><br>
     </p>
         <ol>
-          <li>Select your dataset. Click Browse, then select the .csv or .xlsx file on your computer. The file will upload.
+          <li>Select your dataset. Click Browse, then select the .csv or .xlsx file on your computer. The file will upload. The file must be in a "wide" format, where each line (or row) corresponds to an individual, and each individual corresponds to a single line. The first row should be your variable names. Missing data should be indicated by NA. If a column is called "distance", it will be deleted.
           </li>
           <li>Select your variables. Fields will appear to let you select the treatment (grouping, or pairing) variable, covariates, and optional exact matching variables. The <strong>treatment variable</strong> needs to be a binary (dichotomous) variable; it is what divides your data into two groups for comparison. The <strong>covariates</strong> are variables that you suspect or know have an influence on the outcome but are not the primary focus of the study. These might include demographic factors like age and gender, or other background variables. In the context of matching, covariates are used to adjust the groups so that they are comparable on these background characteristics. The <strong>Exact Matching Variables</strong> are optional and used when you want to ensure that matched units are identical on certain key characteristics. When you use exact matching, the algorithm will only match units that have the exact same value on these variables.
           </li>

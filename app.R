@@ -13,6 +13,9 @@
 #   ajout fichier about / aide et son affichage bilingue
 #   déménagement vers github
 #   largeur d'affichage fixée à max 950 px
+# - 2023-01-08
+#   ajout fichiers .zip
+#   fix: les variables exactes étaient ignorées
 
 library(shiny)
 library(shinyjs)
@@ -34,6 +37,16 @@ library(glmnet)
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
+
+# Define a function to create a unique temporary directory for each session
+makeSessionTempDir <- function() {
+  temp_dir <- tempdir()
+  session_dir <- file.path(temp_dir, paste0("session_", Sys.getpid()))
+  if (!dir.exists(session_dir)) {
+    dir.create(session_dir)
+  }
+  return(session_dir)
+}
 
 # Define UI
 ui <- fluidPage(title = "promatch",
@@ -83,7 +96,8 @@ ui <- fluidPage(title = "promatch",
                 "text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv",
-                ".xlsx"
+                ".xlsx",
+                ".zip"
               )
             ),
           ),
@@ -101,7 +115,7 @@ ui <- fluidPage(title = "promatch",
           selectInput(
             "method",
             label = i18n$t("Matching Method"),
-            choices = c("optimal", "nearest", "full", "exact")
+            choices = c("nearest", "optimal", "full", "exact")
           ),
           selectInput(
             "distance",
@@ -138,7 +152,22 @@ ui <- fluidPage(title = "promatch",
 
 # Define server logic
 server <- function(input, output, session) {
+  ## temp folder management ----
+  session_temp_dir <- makeSessionTempDir()  # temp dir for unzipping .zip files
+
+  # Function to clean up session-specific temp directory
+  sessionCleanup <- function() {
+    if (dir.exists(session_temp_dir)) {
+      unlink(session_temp_dir, recursive = TRUE)
+    }
+  }
   
+  # Register the cleanup function to run when the session ends
+  session$onSessionEnded(function() {
+    sessionCleanup()
+  })
+  
+  ## setting up ----
   modalContent <- reactiveVal("")  # for info boxes
   
   # language selector
@@ -148,18 +177,48 @@ server <- function(input, output, session) {
     # Here is where we update language in session
     shiny.i18n::update_lang(input$selected_language)
   })
+
   
-  # file upload
+  ## file upload ----
   data <- reactive({
     req(input$file1)
     inFile <- input$file1
+    
     # Check file type and read accordingly
     if (grepl("\\.csv$", inFile$name)) {
       df <- read.csv(inFile$datapath)
     } else if (grepl("\\.xlsx$", inFile$name)) {
       df <- read_excel(inFile$datapath)
+    } else if (grepl("\\.zip$", inFile$name)) {
+      # Clear the directory if it exists, or create it if it doesn't
+      zip_dir <- file.path(session_temp_dir, "unzipped_files")
+      if (dir.exists(zip_dir)) {
+        unlink(zip_dir, recursive = TRUE)
+      }
+      dir.create(zip_dir)
+      
+      # Unzip the file
+      unzip(inFile$datapath, exdir = zip_dir)
+      
+      # Read the file
+      files <- list.files(zip_dir, pattern = "\\.csv$|\\.xlsx$")
+      if (length(files) == 0) {
+        stop("Error: No CSV or Excel files found in the ZIP.")
+      } else if (length(files) > 1) {
+        stop("Error: Multiple files found in the ZIP. Please include only one CSV or Excel file.")
+      }
+      
+      file_path <- file.path(zip_dir, files[1])
+      if (grepl("\\.csv$", files[1])) {
+        df <- read.csv(file_path)
+      } else if (grepl("\\.xlsx$", files[1])) {
+        df <- read_excel(file_path)
+      } else {
+        stop("Error: Invalid file type in ZIP.")
+      }
+
     } else {
-      stop("Invalid file type")
+      stop("Error: invalid file type.")
     }
     
   })
@@ -231,14 +290,21 @@ server <- function(input, output, session) {
     # Count initial number of rows
     initial_row_count <- nrow(df)
     
+    # If a column is called "distance" we need to remove it
+    df <- df[, !names(df) %in% "distance", drop = FALSE]
+    
     # Removing rows with NA in the dependent variable or any of the covariates
     # df_clean <- na.omit(df[, c(input$depVar, input$covariates)])
     
-    complete_rows <- complete.cases(df[, c(input$depVar, input$covariates)])
-    
-    # Remove rows with NA from the entire data frame (will keep all columns)
-    df_clean <- df[complete_rows, ]
-    
+    # remove NAs from variables
+    if (!is.null(input$exact_match)) {  # if the exact match field is NOT empty
+      # print(paste0("You have ordered an exact match too: ", input$exact_match))
+      complete_rows <- complete.cases(df[, c(input$depVar, input$covariates, input$exact_match)])
+    } else {
+      complete_rows <- complete.cases(df[, c(input$depVar, input$covariates)])
+    }
+    df_clean <- df[complete_rows, ]  # Remove rows with NA from the entire data frame (will keep all columns)
+
     # Count new number of rows after removal
     new_row_count <- nrow(df_clean)
     
@@ -255,11 +321,25 @@ server <- function(input, output, session) {
       tryCatch({
         # Perform the matching using the matchit function
         formula <- as.formula(paste(input$depVar, "~", paste(input$covariates, collapse = " + ")))
-        if (!is.null(input$exact_match)) {  # if the exact match field is empty
-          m.out <- matchit(formula, data = df_clean, method = input$method, distance = input$distance)
-        } else {
-          m.out <- matchit(formula, data = df_clean, method = input$method, exact = input$exact_match, distance = input$distance)
+        
+        # Prepare the exact match variable, if needed
+        exact_match_vars <- NULL
+        if (!is.null(input$exact_match) && length(input$exact_match) > 0) {
+          # Split the string by '+' and trim whitespaces
+          exact_match_vars <- unlist(strsplit(input$exact_match, "\\s*\\+\\s*"))
+          # Remove any leading or trailing whitespace
+          exact_match_vars <- trimws(exact_match_vars)
+          print(paste0("About to do an exact match on ", paste(exact_match_vars, collapse = ", ")))
         }
+        
+        # Perform the matching using the matchit function
+        m.out <- matchit(
+          formula, 
+          method = input$method, 
+          distance = input$distance, 
+          data = df_clean, 
+          exact = exact_match_vars
+        )
         
         # Extract the matched data
         matched <- match.data(object = m.out, data = df_clean)
@@ -313,8 +393,7 @@ server <- function(input, output, session) {
   # info box
   observeEvent(input$info_click, {
     content <- switch(input$info_click,
-                      "info_file" = i18n$t("This will upload your file."),
-                      "file2" = "This modal contains information about how to upload the second file.",
+                      "info_file" = i18n$t("This will upload your file. Accepted formats are .csv, .xlsx. Zipped (.zip) csv and excel are also good."),
                       # ... add more cases as needed ...
                       stop("Unknown info icon")
     )

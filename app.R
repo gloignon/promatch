@@ -85,6 +85,7 @@ ui <- fluidPage(title = "promatch",
   ),
   
   titlePanel("promatch"),
+  ## Panel Match ----
   tabsetPanel(
     tabPanel(i18n$t("Match"),
       sidebarLayout(
@@ -136,6 +137,7 @@ ui <- fluidPage(title = "promatch",
       ),  # fin main panel onglet matching
       )  # fin sidebar layout
     ),     # fin onglet matching
+    ## Panel advanced -----
     tabPanel(i18n$t("Advanced"),
              sidebarLayout(
                sidebarPanel(width = 6,
@@ -158,7 +160,7 @@ ui <- fluidPage(title = "promatch",
               )
              )
     ),  # fin Avancé
-    
+    # Panel help ----
     tabPanel(i18n$t("Help / About"),
              fluidRow(
                column(
@@ -301,9 +303,18 @@ server <- function(input, output, session) {
     # If data is available, enable the download button, otherwise disable it
     if(data_available()) {
       shinyjs::enable("download")
+      shinyjs::enable("downloadLongFormat")
     } else {
       shinyjs::disable("download")
-
+      shinyjs::disable("downloadLongFormat")
+    }
+    
+    if (length(input$advancedVars) > 0) {
+      # Enable download button when at least one variable is selected
+      shinyjs::enable("downloadLongFormat")
+    } else {
+      # Disable download button when no variable is selected
+      shinyjs::disable("downloadLongFormat")
     }
   })
   
@@ -522,8 +533,20 @@ server <- function(input, output, session) {
         req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
         
         # Transform matched_data to long format
-        long_data <- matched_data() %>%
+        result <- try({
+          long_data <- matched_data() %>%
           pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
+        }, silent = TRUE)
+        
+        # Check if there was an error
+        if (inherits(result, "try-error")) {
+          showModal(modalDialog(
+            title = "Error",
+            "An error occurred while transforming to long format. Please check your data, especially the selected measurement variables.",
+            easyClose = TRUE,
+            footer = modalButton("Close")
+          ))
+        }
         
         # Write the long format data to the file
         write.csv(long_data, file, row.names = FALSE)      }

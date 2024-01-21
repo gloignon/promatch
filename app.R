@@ -17,8 +17,10 @@
 #   ajout fichiers .zip
 #   fix: les variables exactes étaient ignorées
 
+library(tidyr)
 library(shiny)
 library(shinyjs)
+library(shinyWidgets)
 
 library(shiny.i18n)
 
@@ -30,7 +32,7 @@ library(readxl)
 
 # explicit library calls so that the server can use the more advanced methods and distance measurements
 library(optmatch)
-library(randomForest)
+# library(randomForest)
 library(rpart)
 library(mgcv)
 library(glmnet)
@@ -48,7 +50,7 @@ makeSessionTempDir <- function() {
   return(session_dir)
 }
 
-# Define UI
+# Define UI ----
 ui <- fluidPage(title = "promatch",
 
   tags$head(tags$style(
@@ -63,7 +65,8 @@ ui <- fluidPage(title = "promatch",
       .info-icon:hover {
         color: #0056b3; /* Darker shade when hovering, like a link */
       }
-      .container-fluid {  max-width: 950px; }"
+      .container-fluid {  max-width: 950px; }
+      "
     )
   )),
   
@@ -83,7 +86,7 @@ ui <- fluidPage(title = "promatch",
   
   titlePanel("promatch"),
   tabsetPanel(
-    tabPanel(i18n$t("Matching"),
+    tabPanel(i18n$t("Match"),
       sidebarLayout(
         sidebarPanel(
           # width = 5,
@@ -132,8 +135,30 @@ ui <- fluidPage(title = "promatch",
         verbatimTextOutput("matchSummary")
       ),  # fin main panel onglet matching
       )  # fin sidebar layout
-    ),
-    # fin onglet matching
+    ),     # fin onglet matching
+    tabPanel(i18n$t("Advanced"),
+             sidebarLayout(
+               sidebarPanel(width = 6,
+                 # Use multiInput for advanced variable selection
+                 multiInput(
+                   inputId = "advancedVars", 
+                   autocomplete = TRUE, 
+                   label = i18n$t("Select measurement variable(s)"),
+                   choices = "" # Initial choices, updated via server
+                   # options = list(
+                   #   non_selected_header = i18n$t("Available variables:"),
+                   #   selected_header = i18n$t("Selected variables:")
+                   # ) # Enable live search and actions box
+                 ),
+                 br(),
+                 downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
+              ),
+              mainPanel(
+                
+              )
+             )
+    ),  # fin Avancé
+    
     tabPanel(i18n$t("Help / About"),
              fluidRow(
                column(
@@ -143,14 +168,11 @@ ui <- fluidPage(title = "promatch",
                  
                )
              )
-             # mainPanel(width = 10,
-             #  
-             # )
-    )
+    )  # fin Help
     )  # fin onglets 
 )  # fin UI
 
-# Define server logic
+# Define server logic ----
 server <- function(input, output, session) {
   ## temp folder management ----
   session_temp_dir <- makeSessionTempDir()  # temp dir for unzipping .zip files
@@ -170,7 +192,58 @@ server <- function(input, output, session) {
   ## setting up ----
   modalContent <- reactiveVal("")  # for info boxes
   
-  # language selector
+  ## Advanced var selector ----
+  # Reactive value for storing available variables
+  availableVarsOnMatch <- reactiveVal()
+  
+  # ## When "Match" is clicked ----
+  # observeEvent(input$match, {
+  #   # Calculate available variables
+  #   allVars <- names(data())
+  #   selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
+  #   availableVars <- setdiff(allVars, selectedVars)
+  #   
+  #   # Update the reactive value
+  #   availableVarsOnMatch(availableVars)
+  #   
+  #   # Immediately update the multiInput choices
+  #   updateMultiInput(
+  #     session = session, 
+  #     inputId = "advancedVars",
+  #     choices = availableVars
+  #   )
+  # })
+  # Observe changes in data availability
+  observe({
+    # When data becomes available
+    if (data_available()) {
+      # Get all variables
+      allVars <- names(matched_data())
+      
+      # Exclude selected variables in depVar, covariates, and exact_match
+      selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
+      availableVars <- setdiff(allVars, selectedVars)
+      
+      # Update the multiInput choices
+      updateMultiInput(
+        session = session, 
+        inputId = "advancedVars",
+        choices = availableVars
+      )
+    }
+  })
+  
+  
+  # Observe changes in availableVarsOnMatch
+  observe({
+    updateMultiInput(
+      session = session, 
+      inputId = "advancedVars",
+      choices = availableVarsOnMatch()
+    )
+  })
+  
+  ## language selector ----
   observeEvent(input$selected_language, {
     # This print is just for demonstration
     print(paste("Language change!", input$selected_language))
@@ -223,13 +296,14 @@ server <- function(input, output, session) {
     
   })
   
-  # download button disable
+  ## download button disable ----
   observe({
     # If data is available, enable the download button, otherwise disable it
     if(data_available()) {
       shinyjs::enable("download")
     } else {
       shinyjs::disable("download")
+
     }
   })
   
@@ -257,7 +331,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # matching
+  ## matching ----
   observeEvent(input$match, {
     req(input$depVar, input$covariates)
     df <- data()
@@ -407,7 +481,7 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Define the download handler
+  ## Define the download handler -----
   output$download <- downloadHandler(
     filename = function() {
       paste("matched-", input$method, "-", input$distance, "-", Sys.Date(), ".csv", sep = "")
@@ -424,6 +498,36 @@ server <- function(input, output, session) {
         # Write the data to CSV
         write.csv(matched_data(), file, row.names = TRUE)
       }
+    }
+  )
+  
+  # Long format download handler ----
+  output$downloadLongFormat <- downloadHandler(
+    filename = function() {
+      paste0("matched-long_format-", Sys.Date(), ".csv")
+    },
+    content = function(file) {
+      if (!data_available() || is.null(matched_data()) || nrow(matched_data()) == 0) {
+        showModal(modalDialog(
+          title = i18n$t("Error"),
+          i18n$t("No matched data available for download."),
+          easyClose = TRUE
+        ))
+      } else {
+        # Write the data to CSV
+        # req(matched_data())  # Ensure matched_data is available
+        
+        # Get the columns to pivot
+        cols_to_pivot <- input$advancedVars
+        req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
+        
+        # Transform matched_data to long format
+        long_data <- matched_data() %>%
+          pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
+        
+        # Write the long format data to the file
+        write.csv(long_data, file, row.names = FALSE)      }
+
     }
   )
   

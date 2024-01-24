@@ -4,6 +4,8 @@
   "translation": [
     {"en": "Changer la langue", "fr":  "Change language"},
     {"en": "Help / About", "fr": "Aide / À propos"},
+    {"en": "Browse", "fr": "Choisir"},
+    {"en": "No file selected", "fr": "Veuillez choisir un fichier."},
     {"en": "Matching Method", "fr": "Méthode de pairage"},
     {"en": "Error: invalid file type.", "fr": "Erreur: type de fichier non-valide."},
     {"en": "Download Matched CSV", "fr": "Télécharger le CSV de pairage"},
@@ -22,7 +24,7 @@
     {"en": "No matched data available for download.", "fr": "Le résultat de l'appariement n'est pas disponibles pour le téléchargement."},
     {"en": "The treatment variable must have exactly two levels to perform matching.", "fr": "La variable de traitement doit avoir exactement deux niveaux pour effectuer le pairage."},
     {"en": "Select Exact matching variables (optional)", "fr": "Choisir les variables d'appariement exact (facultatif)"},
-    {"en": "This will upload your file. Accepted formats are .csv, .xlsx. Zipped (.zip) csv and excel are also good.", "fr": "Cette vous permet de choisir un fichier et le transférer vers le serveur. Les formats acceptés sont .csv, .xlsx. Les fichier csv ou excel compressés en .zip sont également acceptés."},
+    {"en": "This will upload your file. Accepted formats are .csv, .xlsx. Zipped (.zip) csv and excel are also good.", "fr": "Cette boite vous permet de choisir un fichier et le transférer vers le serveur. Les formats acceptés sont .csv, .xlsx. Les fichier csv ou excel compressés en .zip sont également acceptés."},
     {"en": "Transform", "fr": "Transformer"},
     {"en": "Advanced", "fr": "Avancé"},
     {"en": "Select measurement variable(s)", "fr": "Choisir la ou les variables de mesure"},

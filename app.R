@@ -16,8 +16,13 @@
 # - 2023-01-08
 #   ajout fichiers .zip
 #   fix: les variables exactes étaient ignorées
+# - 2023-01-22
+#   ajout onglet avancé
+# - 2023-01-24
+#   fix onglet avancé
+#   correction affichage onglet matching
 
-library(tidyr)
+library(tidyverse)
 library(shiny)
 library(shinyjs)
 library(shinyWidgets)
@@ -33,9 +38,9 @@ library(readxl)
 # explicit library calls so that the server can use the more advanced methods and distance measurements
 library(optmatch)
 # library(randomForest)
-library(rpart)
-library(mgcv)
-library(glmnet)
+# library(rpart)
+library(mgcv)  # for gam
+library(glmnet)  # for lasso
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
@@ -48,6 +53,25 @@ makeSessionTempDir <- function() {
     dir.create(session_dir)
   }
   return(session_dir)
+}
+
+# Transform df_matched_data to long format
+pivot_matched_data <- function(df_matched_data, cols_to_pivot) {
+  df <- df_matched_data()
+  validate(
+    need(!is.null(cols_to_pivot) && length(cols_to_pivot) > 0, "No columns selected for pivoting."),
+    # need(all(cols_to_pivot %in% colnames(df_matched_data)), "One or more selected columns do not exist in the data frame.")
+  )
+  
+  # convert selected columns to numeric
+  df <- df %>%
+    mutate(across(all_of(cols_to_pivot), as.numeric))
+  
+  # pivot
+  df_long_data <- df %>%
+    pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
+  
+  return(df_long_data)
 }
 
 # Define UI ----
@@ -66,6 +90,7 @@ ui <- fluidPage(title = "promatch",
         color: #0056b3; /* Darker shade when hovering, like a link */
       }
       .container-fluid {  max-width: 950px; }
+      #file1-label {display:none;}
       "
     )
   )),
@@ -76,7 +101,9 @@ ui <- fluidPage(title = "promatch",
   tags$div(
     style = 'float: right;',
     selectInput(
-      inputId = 'selected_language',
+      inputId = 'selected_language', 
+      width = "150px",
+      selectize = FALSE,
       label = i18n$t('Changer la langue'),
       choices = i18n$get_languages(),
       # selected = i18n$get_key_translation()
@@ -90,46 +117,46 @@ ui <- fluidPage(title = "promatch",
     tabPanel(i18n$t("Match"),
       sidebarLayout(
         sidebarPanel(
-          # width = 5,
-          fluidRow(column(
-            width = 9,
+          # fluidRow(column(
+            width = 6,
+            tags$p(tags$b(i18n$t("Choose CSV or Excel (.xlsx) File")), 
+                   tags$span(id = "info_file", class = "info-icon",
+                    onclick = "Shiny.setInputValue('info_click', 'info_file', {priority: 'event'});",
+                    icon("info-circle")), 
+                   style = "margin-bottom: 5px;"
+              ),
             fileInput(
-              "file1",
-              label = i18n$t("Choose CSV or Excel (.xlsx) File"),
+              "file1", 
+              placeholder = "",
+              buttonLabel = i18n$t("Browse"),
+              # label = i18n$t(""),
+              label = "file1",
               accept = c(
                 "text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv",
                 ".xlsx",
-                ".zip"
-              )
+                ".zip"),
             ),
-          ),
-          column(
-            1,
-            tags$span(
-              id = "info_file",
-              class = "info-icon",
-              onclick = "Shiny.setInputValue('info_click', 'info_file', {priority: 'event'});",
-              icon("info-circle")
-            )
-          )),
+
           uiOutput("varSelect"),
           # Dynamic UI for selecting variables
           selectInput(
             "method",
             label = i18n$t("Matching Method"),
-            choices = c("nearest", "optimal", "full", "exact")
+            choices = c("nearest", "optimal", "full", "exact"),
+            selectize = FALSE
           ),
           selectInput(
             "distance",
             label = i18n$t("Distance Measure"),
-            choices = c("glm", "lasso", "gam")
+            choices = c("glm", "lasso", "gam"),
+            selectize = FALSE
           ),
           # Add other options as needed
           actionButton("match", label = i18n$t("Match"))  # *THE* button
         ),  # fin sidebar panel
-      mainPanel(
+      mainPanel(width=6,
         br(),
         downloadButton("download", label = i18n$t("Download Matched CSV")),
         br(),
@@ -153,14 +180,22 @@ ui <- fluidPage(title = "promatch",
                    # ) # Enable live search and actions box
                  ),
                  br(),
-                 downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
+                 downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data")),
+                 br(),
+                 h4("Repeated tests"),
+                 selectInput(
+                   "repeated_tests",
+                   label = i18n$t("Select a test"),
+                   choices = c("Compare means (t-test)", "Compare proportions")
+                 ),
+                 actionButton(inputId = "run_test", label = "Run comparisons")
               ),
-              mainPanel(
-                
+              mainPanel(width = 6,
+                verbatimTextOutput("repeated_tests_output")
               )
              )
     ),  # fin Avancé
-    # Panel help ----
+    ## Panel help ----
     tabPanel(i18n$t("Help / About"),
              fluidRow(
                column(
@@ -176,6 +211,7 @@ ui <- fluidPage(title = "promatch",
 
 # Define server logic ----
 server <- function(input, output, session) {
+
   ## temp folder management ----
   session_temp_dir <- makeSessionTempDir()  # temp dir for unzipping .zip files
 
@@ -198,29 +234,12 @@ server <- function(input, output, session) {
   # Reactive value for storing available variables
   availableVarsOnMatch <- reactiveVal()
   
-  # ## When "Match" is clicked ----
-  # observeEvent(input$match, {
-  #   # Calculate available variables
-  #   allVars <- names(data())
-  #   selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
-  #   availableVars <- setdiff(allVars, selectedVars)
-  #   
-  #   # Update the reactive value
-  #   availableVarsOnMatch(availableVars)
-  #   
-  #   # Immediately update the multiInput choices
-  #   updateMultiInput(
-  #     session = session, 
-  #     inputId = "advancedVars",
-  #     choices = availableVars
-  #   )
-  # })
   # Observe changes in data availability
   observe({
     # When data becomes available
     if (data_available()) {
       # Get all variables
-      allVars <- names(matched_data())
+      allVars <- names(df_matched_data())
       
       # Exclude selected variables in depVar, covariates, and exact_match
       selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
@@ -235,7 +254,6 @@ server <- function(input, output, session) {
     }
   })
   
-  
   # Observe changes in availableVarsOnMatch
   observe({
     updateMultiInput(
@@ -244,6 +262,102 @@ server <- function(input, output, session) {
       choices = availableVarsOnMatch()
     )
   })
+  
+  ## Multiple comparisons ----
+  observeEvent(input$run_test, {
+  
+   selected_test <- input$repeated_tests
+  
+   # Using try to catch errors in pivot_matched_data
+   result <- try(
+     pivot_matched_data(df_matched_data, input$advancedVars)
+   )
+   
+   # Check if there was an error in pivot_matched_data
+   if (inherits(result, "try-error")) {
+     showModal(modalDialog(
+       title = "Error",
+       "An error occurred while transforming to long format. Please check your data, especially the selected measurement variables.",
+       easyClose = TRUE,
+       footer = modalButton("Close")
+     ))
+     return() # Stop further execution if error occurred
+   }
+   
+   # If no error, assign result to df_long_data
+   df_long_data <- result  
+   
+   # group_var <- sym(input$depVar)
+   df_long_data$.group <- df_long_data[[input$depVar]]
+   unique_levels <- unique(df_long_data$.group)
+   print(unique_levels)
+   
+   # # ensure the levels are coded as 1 and 0{{}}
+   # df_long_data <- df_long_data %>%
+   #   mutate(.group = recode(.group, unique_levels[1] = 1, unique_levels[2] = 0))
+
+    if (selected_test == "Compare means (t-test)") {
+      # Run t-test comparisons here
+      result_t_test <- try(
+          df_long_data %>% group_by(variable) %>% 
+          rstatix::t_test(score ~ .group) %>% 
+          mutate(p = format.pval(p, eps = .001)) %>% 
+          select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+          mutate(across(where(is.numeric), round, 2)) %>% 
+          as.data.frame()
+      )
+      # Check if there was an error
+      if (inherits(result_t_test, "try-error")) {
+        showModal(modalDialog(
+          title = "Error",
+          "An error occurred while running the t-tests. Please check if the selected variables are appropriate for a t-test.",
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+        tests_summary("Error.") 
+      } else {  # No error
+        tests_summary(result_t_test) 
+      }
+    } else if (selected_test == "Compare proportions") {
+      df_props <- df_long_data %>%
+        filter(!is.na(score)) %>% 
+        group_by(.group, variable) %>%
+        summarise(
+          success = mean(score, na.rm = T),
+          fail = 1 - success,
+          n = n(),
+          n_success = n * success,
+          .groups = 'drop'
+        ) %>% pivot_wider(
+          id_cols = variable,
+          names_from = .group, 
+          values_from = c(success, n, n_success)
+        ) %>% 
+        group_by(variable) %>%
+        mutate(across(where(is.numeric), round, 2)) %>% 
+        mutate(p_value = prop.test(
+          x = c(!!sym(paste0("n_success_", unique_levels[1])),
+                !!sym(paste0("n_success_", unique_levels[2]))),
+          n = c(!!sym(paste0("n_", unique_levels[1])),
+                !!sym(paste0("n_", unique_levels[1])))
+        )$p.value %>% round(4) %>% format.pval(eps = .001)) %>% 
+        select(variable, 
+               !!sym(paste0("success_", unique_levels[1])),
+               !!sym(paste0("success_", unique_levels[2])),
+               p_value) %>% 
+        as.data.frame()
+      tests_summary(df_props)
+    }
+    
+    # Store and define the summary
+    # tests_summary(summary(m.out))
+    output$repeated_tests_output <- renderPrint({
+      # req(tests_summary())  # Require that output_summary is not NULL
+      tests_summary()       # Output the stored summary
+    })
+    
+  })
+    
   
   ## language selector ----
   observeEvent(input$selected_language, {
@@ -321,13 +435,15 @@ server <- function(input, output, session) {
   # This will hold the summary of m.out
   output_summary <- reactiveVal()
   
+  tests_summary <- reactiveVal()
+  
   # This reactive expression will hold the matched data for download
-  matched_data <- reactiveVal()  # Initialize a reactive value
+  df_matched_data <- reactiveVal()  # Initialize a reactive value
   
   # Define a reactive expression that checks if the matched data is available and non-empty
   data_available <- reactive({
-    # Check if matched_data is non-null and has more than 0 rows
-    !is.null(matched_data()) && nrow(matched_data()) > 0
+    # Check if df_matched_data is non-null and has more than 0 rows
+    !is.null(df_matched_data()) && nrow(df_matched_data()) > 0
   })
   
   # Update UI based on uploaded file
@@ -342,7 +458,7 @@ server <- function(input, output, session) {
     }
   })
   
-  ## matching ----
+  ## Matching ----
   observeEvent(input$match, {
     req(input$depVar, input$covariates)
     df <- data()
@@ -431,7 +547,7 @@ server <- function(input, output, session) {
         #TODO: user should be able to choose if match.data will output the distance or the prop.score
         
         # Update the reactive value with the matched data
-        matched_data(matched)  # This line updates the reactive value
+        df_matched_data(matched)  # This line updates the reactive value
         
         # Store and define the summary
         output_summary(summary(m.out))
@@ -492,14 +608,14 @@ server <- function(input, output, session) {
     ))
   })
   
-  ## Define the download handler -----
+  ## Main download handler -----
   output$download <- downloadHandler(
     filename = function() {
       paste("matched-", input$method, "-", input$distance, "-", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      # Confirm that matched_data is not empty
-      if (!data_available() || is.null(matched_data()) || nrow(matched_data()) == 0) {
+      # Confirm that df_matched_data is not empty
+      if (!data_available() || is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
         showModal(modalDialog(
           title = i18n$t("Error"),
           i18n$t("No matched data available for download."),
@@ -507,7 +623,7 @@ server <- function(input, output, session) {
         ))
       } else {
         # Write the data to CSV
-        write.csv(matched_data(), file, row.names = TRUE)
+        write.csv(df_matched_data(), file, row.names = TRUE)
       }
     }
   )
@@ -518,7 +634,7 @@ server <- function(input, output, session) {
       paste0("matched-long_format-", Sys.Date(), ".csv")
     },
     content = function(file) {
-      if (!data_available() || is.null(matched_data()) || nrow(matched_data()) == 0) {
+      if (!data_available() || is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
         showModal(modalDialog(
           title = i18n$t("Error"),
           i18n$t("No matched data available for download."),
@@ -526,30 +642,16 @@ server <- function(input, output, session) {
         ))
       } else {
         # Write the data to CSV
-        # req(matched_data())  # Ensure matched_data is available
+        # req(df_matched_data())  # Ensure df_matched_data is available
         
         # Get the columns to pivot
         cols_to_pivot <- input$advancedVars
         req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
         
-        # Transform matched_data to long format
-        result <- try({
-          long_data <- matched_data() %>%
-          pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
-        }, silent = TRUE)
-        
-        # Check if there was an error
-        if (inherits(result, "try-error")) {
-          showModal(modalDialog(
-            title = "Error",
-            "An error occurred while transforming to long format. Please check your data, especially the selected measurement variables.",
-            easyClose = TRUE,
-            footer = modalButton("Close")
-          ))
-        }
+        df_long_data <- pivot_matched_data(df_matched_data, cols_to_pivot)
         
         # Write the long format data to the file
-        write.csv(long_data, file, row.names = FALSE)      }
+        write.csv(df_long_data, file, row.names = FALSE)      }
 
     }
   )

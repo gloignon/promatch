@@ -17,7 +17,7 @@
     
 <h2>Help!</h2>
     <p>
-        <strong>How does it work?</strong><br>
+        <h3>How does it work?</h3>
     </p>
         <ol>
           <li>Select your dataset. Click Browse, then select the .csv or .xlsx file on your computer. The file will upload. The file must be in a "wide" format, where each line (or row) corresponds to an individual, and each individual corresponds to a single line. The first row should be your variable names. Missing data should be indicated by NA. If a column is called "distance", it will be deleted.
@@ -29,6 +29,12 @@
           <li>Click the Match button to start the matching process. A message will appear to confirm that it's working.</li>
           <li>Click the Download Matched CSV to download the resulting paired data. This button will be disabled unless there is actual pairing data available for download. A box will display information about the quality of the matching, this is a direct output from R's summary() function applied to the matching object.</li>
         </ol>
+        
+                <h3>Advanced features</h3>
+        <p>The <i>Advanced</i> tab lets you transform and export your matched data in long format, in addition to performing simple statistical comparisons. Exporting in long format is particularly useful for performing statistical analyses on another platform that require this format. This is the case for multi-level models on JASP or jamovi.</p>
+        <p>To select your measurement variable(s), simply click on the name of the variable(s) in the Advanced tab's selection box. Your grouping variable and the variables used for matching will not be available in this list. A button then allows you to export and download your matched data in long format. In the resulting .csv file, measurement variables will be grouped under the "variable" column, and measures under the "score" column. It is therefore best not to already have these column names in your file if you intend to use the long format export function! Note: if you have a single measurement variable, this function will be of questionable use.</p>
+        <p><strong>Statistical tests.</strong>You can perform a t-test or a test of proportions on each selected measurement variable. The t-test will compare the average per group, for each selected measurement. The proportion test requires measurement variable data to be coded 1 or 0 (typically: pass or fail) and will compare the proportion of 1 versus 0 (typically: the proportion of passes or correct answers). The results are displayed as a table that can be copied and pasted. The t-test displays the degrees of freedom (df), the t-statistic and the p-value. The proportion test displays the proportion of individuals with the value 1 for each measure, as well as the p-value of the proportion test.</p>
+        <p>The long format is a data structure in which your measurement variables are grouped in two columns, the first column indicating the variable measured and the second column indicating the measurement. For example, in the case of items, the first column would contain the item identifier and the second column would contain the score. This means that in this format, there will be several observations or rows per individual (<a href = "https://en.wikipedia.org/wiki/Wide_and_narrow_data">see example on Wikipedia</a>).</p>
 
 <h2>Bibliography</h2>
 <ul>

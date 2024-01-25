@@ -21,6 +21,9 @@
 # - 2023-01-24
 #   fix onglet avancé
 #   correction affichage onglet matching
+# - 2023-01-25
+#   Ajout traduction, documentation
+#   Ajout B-M test
 
 library(tidyverse)
 library(shiny)
@@ -41,6 +44,8 @@ library(optmatch)
 # library(rpart)
 library(mgcv)  # for gam
 library(glmnet)  # for lasso
+
+library(brunnermunzel)  # for BM tests
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
@@ -72,6 +77,36 @@ pivot_matched_data <- function(df_matched_data, cols_to_pivot) {
     pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
   
   return(df_long_data)
+}
+
+brunner_munzel_test <- function(data, formula, conf.level = .05, 
+                                alternative = "two.sided", est = "original") {
+  
+  bm_clean <- function(data, formula, conf.level, alternative, 
+                       est) {
+    # Run the test once
+    test_result <-
+      brunnermunzel::brunnermunzel.test(
+        formula = formula,
+        data = data,
+        alternative = alternative,
+        alpha = conf.level,
+        est = est
+      )
+    
+    # Unpack the results into separate columns
+    data %>%
+      summarise(
+        df = test_result$parameter,
+        statistic = test_result$statistic,
+        p_value = test_result$p.value,
+        estimate = test_result$estimate,
+        ci_low = test_result$conf.int[1],
+        ci_high = test_result$conf.int[2]
+      )
+  }
+  data %>%
+    group_modify( ~ bm_clean(.x, formula, conf.level, alternative, est))
 }
 
 # Define UI ----
@@ -164,7 +199,7 @@ ui <- fluidPage(title = "promatch",
       ),  # fin main panel onglet matching
       )  # fin sidebar layout
     ),     # fin onglet matching
-    ## Panel advanced -----
+    ## Panel Advanced -----
     tabPanel(i18n$t("Advanced"),
              sidebarLayout(
                sidebarPanel(width = 6,
@@ -186,9 +221,10 @@ ui <- fluidPage(title = "promatch",
                  selectInput(
                    "repeated_tests",
                    label = i18n$t("Select a test"),
-                   choices = c("Compare means (t-test)", "Compare proportions")
+                   choices = c("T-test", "Proportions", "Brunner-Munzel"), 
+                   selectize = FALSE
                  ),
-                 actionButton(inputId = "run_test", label = "Run comparisons")
+                 actionButton(inputId = "run_test", label = i18n$t("Run comparisons"))
               ),
               mainPanel(width = 6,
                 verbatimTextOutput("repeated_tests_output")
@@ -230,7 +266,7 @@ server <- function(input, output, session) {
   ## setting up ----
   modalContent <- reactiveVal("")  # for info boxes
   
-  ## Advanced var selector ----
+  ## Advanced tab ----
   # Reactive value for storing available variables
   availableVarsOnMatch <- reactiveVal()
   
@@ -296,7 +332,7 @@ server <- function(input, output, session) {
    # df_long_data <- df_long_data %>%
    #   mutate(.group = recode(.group, unique_levels[1] = 1, unique_levels[2] = 0))
 
-    if (selected_test == "Compare means (t-test)") {
+    if (selected_test == "T-test") {
       # Run t-test comparisons here
       result_t_test <- try(
           df_long_data %>% group_by(variable) %>% 
@@ -318,7 +354,7 @@ server <- function(input, output, session) {
       } else {  # No error
         tests_summary(result_t_test) 
       }
-    } else if (selected_test == "Compare proportions") {
+    } else if (selected_test == "Proportions") {
       df_props <- df_long_data %>%
         filter(!is.na(score)) %>% 
         group_by(.group, variable) %>%
@@ -347,6 +383,27 @@ server <- function(input, output, session) {
                p_value) %>% 
         as.data.frame()
       tests_summary(df_props)
+    } else if(selected_test == "Brunner-Munzel") {
+      result_BM_test <- try(
+        df_long_data %>% group_by(variable) %>% 
+          brunner_munzel_test(score ~ .group) %>% 
+          # mutate(p = format.pval(p, eps = .001)) %>% 
+          # select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+          mutate(across(where(is.numeric), round, 2)) %>% 
+          as.data.frame()
+      )
+      # Check if there was an error
+      if (inherits(result_BM_test, "try-error")) {
+        showModal(modalDialog(
+          title = "Error",
+          "An error occurred while running the B-M tests. Please check if the selected variables are appropriate for a t-test.",
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+        tests_summary("Error.") 
+      } else {
+        tests_summary(result_BM_test) 
+      }
     }
     
     # Store and define the summary

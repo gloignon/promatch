@@ -16,8 +16,8 @@
     </p>  
     
 <h2>Aide</h2>
-    <p>
-        <strong>Comment utiliser promatch ?</strong><br>
+    <h3>
+        <strong>Comment utiliser promatch ?</strong></h3>
     </p>
         <ol>
           <li>Sélectionnez le fichier contenant votre jeu de données. Cliquez sur Parcourir, puis sélectionnez le fichier .csv ou .xlsx sur votre ordinateur. Le fichier sera téléversé sur le serveur. Le fichier doit être dans un format "large" où chaque ligne (ou rangée) correspond à un individu, et chaque individu correspond à une seule ligne. La première ligne du fichier doit contenir les noms de vos variables. Les données manquantes doivent être indiquées par NA. Si une colonne s'appelle "distance", elle sera supprimée.
@@ -26,9 +26,15 @@
           </li>
           <li>Sélectionner la méthode d'appariement.</li>
           <li>Sélectionner la mesure de distance.</li>
-          <li>Click the Match button to start the matching process. A message will appear to confirm that it's working.</li>
+          <li>Cliquez sur le bouton "Apparier" pour lancer le processus de mise en correspondance. Un message s'affiche pour confirmer que le processus a fonctionné.</li>
           <li>Cliquez sur le bouton Télécharger le CSV apparié pour télécharger les données appariées résultantes. Ce bouton sera désactivé si les données d'appariement ne sont pas disponibles pour le téléchargement. Une boîte affiche des informations sur la qualité de l'appariement. Il s'agit d'une sortie directe de la fonction summary() de R appliquée à l'objet d'appariement.</li>
         </ol>
+        
+        <h3>Fonctionnalités avancées</h3>
+        <p>L'onglet <i>Avancé</i> vous permet de transformer et exporter vos données appariées en format long, en plus  d'effectuer des comparaisons statistiques simples. Exporter au format long est utile notamment pour effectuer sur une autre plateforme des analyses statistiques qui demandent ce format. C'est le cas pour les modèles multiniveau sur JASP ou jamovi.</p>
+        <p>Pour sélectionner votre ou vos variables de mesure, il suffit de cliquer sur le nom de la ou des variables dans le sélecteur de l'onglet Avancé. Votre variable de regroupement et les variables utilisées pour l'appariement ne seront pas disponibles dans cette liste. Un bouton vous permet ensuite d'exporter et télécharger vos données appariées en format long. Les variables de mesure vont être regroupées sous la colonne "variable", et les mesures sous la colonne "score". Il est donc préférable de ne pas déjà avoir ces noms de colonne dans votre fichier si vous comptez utiliser la fonction d'exportation en format long! Note: si vous avez une seule variable de mesure, cette fonction sera d'une utilité discutable.</p>
+        <p>Vous pouvez ensuite effecter un test t ou un test des proportions sur chaque variable de mesure sélectionnée. Le test t va comparer la moyenne par groupe, pour chaque mesure sélectionnée. Le test de proportions demande que les données des variables de mesure soient codées 1 ou 0 (typiquement: succès et échec) et va comparer la proportion de 1 versus 0 (typiquement: la proportion de succès ou de bonnes réponses). Les résultats s'affichent sous forme de tableau pouvant être copie-collé. Le test t affiche les degrés de liberté (df), la statistique t et la p-valeur. Le test de proportions affiche la proportion d'individus ayant la valeur 1 pour chaque mesure, ainsi que la p-valeur du test de proportions.</p>
+        <p>Le format long est une sructure de données où vos variables de mesure sont regroupées dans deux colonnes, la première colonne indiquant la variable mesurée et la seconde colonne indiquant la mesure. Par exemple, dans le cas d'items, la première colonne indiquerait l'identifiant de l'item et la seconde colonne indiquerait le score obtenu. Cela signifie typiquement qu'il y aura, dans ce format, plusieurs observations ou rangées par individu (<a href = "https://en.wikipedia.org/wiki/Wide_and_narrow_data">voir l'exemple sur Wikipédia</a>).</p>
 
 <h2>Bibliographie</h2>
 <ul>

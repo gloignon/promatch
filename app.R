@@ -256,6 +256,7 @@ server <- function(input, output, session) {
   session_temp_dir <- makeSessionTempDir()  # temp dir for unzipping .zip files
 
   # Function to clean up session-specific temp directory
+    # This will delete the uploaded zip file(s) and if it was created the long format zipped .csv
   sessionCleanup <- function() {
     if (dir.exists(session_temp_dir)) {
       unlink(session_temp_dir, recursive = TRUE)
@@ -709,9 +710,37 @@ server <- function(input, output, session) {
   )
   
   # Long format download handler ----
+  # output$downloadLongFormat <- downloadHandler(
+  #   filename = function() {
+  #     paste0("matched-long_format-", Sys.Date(), ".csv")
+  #   },
+  #   content = function(file) {
+  #     if (!data_available() || is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
+  #       showModal(modalDialog(
+  #         title = i18n$t("Error"),
+  #         i18n$t("No matched data available for download."),
+  #         easyClose = TRUE
+  #       ))
+  #     } else {
+  #       # Write the data to CSV
+  #       # req(df_matched_data())  # Ensure df_matched_data is available
+  #       
+  #       # Get the columns to pivot
+  #       cols_to_pivot <- input$advancedVars
+  #       req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
+  #       
+  #       df_long_data <- pivot_matched_data(df_matched_data, cols_to_pivot)
+  #       
+  #       # Write the long format data to the file
+  #       write.csv(df_long_data, file, row.names = FALSE)      
+  #       }
+  # 
+  #   }
+  # )
+  
   output$downloadLongFormat <- downloadHandler(
     filename = function() {
-      paste0("matched-long_format-", Sys.Date(), ".csv")
+      paste0("matched-long_format-", Sys.Date(), ".zip")
     },
     content = function(file) {
       if (!data_available() || is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
@@ -720,22 +749,39 @@ server <- function(input, output, session) {
           i18n$t("No matched data available for download."),
           easyClose = TRUE
         ))
-      } else {
-        # Write the data to CSV
-        # req(df_matched_data())  # Ensure df_matched_data is available
-        
-        # Get the columns to pivot
-        cols_to_pivot <- input$advancedVars
-        req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
-        
-        df_long_data <- pivot_matched_data(df_matched_data, cols_to_pivot)
-        
-        # Write the long format data to the file
-        write.csv(df_long_data, file, row.names = FALSE)      
-        }
+        return()
+      }
+      
+      # Get the columns to pivot
+      cols_to_pivot <- input$advancedVars
+      req(length(cols_to_pivot) > 0)  # Ensure there's at least one column selected
+      
+      df_long_data <- pivot_matched_data(df_matched_data, cols_to_pivot)
+      
+      # Create a temporary file for the CSV
+      zip_dir <- file.path(session_temp_dir, "csv2zip")
+      if (dir.exists(zip_dir)) {
+        unlink(zip_dir, recursive = TRUE)
+      }
+      dir.create(zip_dir)
+      orig_dir <- getwd()
+      setwd(zip_dir)
 
+      write.csv(x = df_long_data,
+                file = paste0("matched-long_format-", Sys.Date(), ".csv"), 
+                row.names = FALSE)
+                
+      # Create a ZIP file containing the CSV
+      zip(zipfile = file, files = paste0("matched-long_format-", Sys.Date(), ".csv"))
+      setwd(orig_dir)  # let's go back to the original directory
+      
+      # # Clean up the temporary CSV file
+      # unlink(temp_csv)
+      
     }
   )
+  
+  
   
   # display about page in right language
   output$about_content <- renderUI({

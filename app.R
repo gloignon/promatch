@@ -179,7 +179,7 @@ ui <- fluidPage(title = "promatch",
           selectInput(
             "method",
             label = i18n$t("Matching Method"),
-            choices = c("nearest", "optimal", "full", "exact"),
+            choices = c("nearest", "quick", "optimal", "full", "exact"),
             selectize = FALSE
           ),
           selectInput(
@@ -188,7 +188,11 @@ ui <- fluidPage(title = "promatch",
             choices = c("glm", "lasso", "gam"),
             selectize = FALSE
           ),
-          # Add other options as needed
+          # Extra controls
+          checkboxInput("showSlider", "Use caliper (matching tolerance, in stand. dev.)", value = FALSE),
+          
+          uiOutput("dynamicSlider"),
+          # Match button
           actionButton("match", label = i18n$t("Match"))  # *THE* button
         ),  # fin sidebar panel
       mainPanel(width=6,
@@ -515,6 +519,17 @@ server <- function(input, output, session) {
     }
   })
   
+  ## Caliper slider toggle ----
+  # Dynamic UI for the slider
+  output$dynamicSlider <- renderUI({
+    # Check if the checkbox is selected
+    if(input$showSlider) {
+      # Return the slider UI
+      sliderInput("caliper", "Caliper",
+                  min = 0.05, max = 1, value = 0.2, step = 0.05)
+    }
+  })
+  
   ## Matching ----
   observeEvent(input$match, {
     req(input$depVar, input$covariates)
@@ -574,6 +589,12 @@ server <- function(input, output, session) {
       footer = NULL
     ))
     
+    if (input$showSlider == FALSE | is.null(input$caliper)) {
+      caliper <- NULL
+    } else {
+      caliper <- input$caliper
+    }
+    
     # Proceed with the matching if there are enough rows left
     if (new_row_count > 0) {
       tryCatch({
@@ -596,7 +617,9 @@ server <- function(input, output, session) {
           method = input$method, 
           distance = input$distance, 
           data = df_clean, 
-          exact = exact_match_vars
+          exact = exact_match_vars,
+          caliper = caliper, 
+          std.caliper = TRUE
         )
         
         # Extract the matched data
@@ -708,7 +731,8 @@ server <- function(input, output, session) {
         df_long_data <- pivot_matched_data(df_matched_data, cols_to_pivot)
         
         # Write the long format data to the file
-        write.csv(df_long_data, file, row.names = FALSE)      }
+        write.csv(df_long_data, file, row.names = FALSE)      
+        }
 
     }
   )

@@ -44,6 +44,7 @@ library(optmatch)
 # library(rpart)
 library(mgcv)  # for gam
 library(glmnet)  # for lasso
+library(quickmatch)  # for quick
 
 library(brunnermunzel)  # for BM tests
 

@@ -16,6 +16,7 @@ Imports:
     readxl,
     MatchIt,
     optmatch,
+    quickmatch,
     rpart,
     mgcv,
     glmnet,

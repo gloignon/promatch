@@ -597,6 +597,7 @@ server <- function(input, output, session) {
       caliper <- input$caliper
     }
     
+    ## the actual matching ----
     # Proceed with the matching if there are enough rows left
     if (new_row_count > 0) {
       tryCatch({
@@ -620,7 +621,8 @@ server <- function(input, output, session) {
           distance = input$distance, 
           data = df_clean, 
           exact = exact_match_vars,
-          caliper = caliper, 
+          caliper = caliper,
+          link = "linear.logit", # will apply the caliper to the logit
           std.caliper = TRUE
         )
         

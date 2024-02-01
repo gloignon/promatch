@@ -8,7 +8,7 @@
     {"en": "No file selected", "fr": "Veuillez choisir un fichier."},
     {"en": "Matching Method", "fr": "Méthode de pairage"},
     {"en": "Error: invalid file type.", "fr": "Erreur: type de fichier non-valide."},
-    {"en": "Download Matched CSV", "fr": "Télécharger le CSV de pairage"},
+    {"en": "Download Matched data", "fr": "Télécharger les données appariées"},
     {"en": "Choose CSV or Excel (.xlsx) File", "fr": "Choisir le fichier CSV ou Excel (.xlsx)"},
     {"en": "Distance Measure", "fr": "Mesure de distance"},
     {"en": "Match", "fr": "Apparier"},

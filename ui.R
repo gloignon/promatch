@@ -1,5 +1,6 @@
 # Define UI ----
 ui <- fluidPage(title = "promatch",
+                tags$script(src = "https://kit.fontawesome.com/<you>.js"),
                 
                 tags$head(tags$style(
                   HTML(
@@ -32,10 +33,10 @@ ui <- fluidPage(title = "promatch",
         align-items: flex-start; /* Align items to the start of the cross axis */
         justify-content: flex-start; /* Align items to the start of the main axis */
       }
+      hr {border: .5px solid #ddd; !important;}
       "
   )
   )),
-      
       useShinyjs(),    # Use shinyjs to enable JavaScript functions
       shiny.i18n::usei18n(i18n),  # for translation
       
@@ -63,8 +64,7 @@ ui <- fluidPage(title = "promatch",
                      tags$p(tags$b(i18n$t("Choose CSV or Excel (.xlsx) File")), 
                             tags$span(id = "info_file", class = "info-icon",
                                       onclick = "Shiny.setInputValue('info_click', 'info_file', {priority: 'event'});",
-                                      icon("info-circle")), 
-                            style = "margin-bottom: 5px;"
+                                      icon("info-circle"))
                      ),
                      fileInput(
                        "file1", 
@@ -79,9 +79,10 @@ ui <- fluidPage(title = "promatch",
                          ".xlsx",
                          ".zip"),
                      ),
-                     
+                     # Variable selectors
                      uiOutput("varSelect"),
-                     # Dynamic UI for selecting variables
+                     #hr(),
+                     # Method and distance selectors
                      selectInput(
                        "method",
                        label = i18n$t("Matching Method"),

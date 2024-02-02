@@ -38,6 +38,7 @@
 # - 2023-02-01
 #   le téléchargement principal va être un zip si le fichier est volumineux
 #   (le long format est toujours un zip)
+#   Ajout d'un onglet diagnostic rudimentaire
 
 library(tidyverse)
 library(shiny)
@@ -148,4 +149,55 @@ cleanUploadedFile <- function(df) {
 # Function to check if a variable is continuous
 is_continuous <- function(df, var) {
   is.numeric(df[[var]]) || is.double(df[[var]])
+}
+
+# Function to translate R's variable types to common types
+translate_var_type <- function(var, data) {
+  # print(head(data[[var]]))
+  # print(typeof(data[[var]]))
+  if (is.factor(data[[var]])) {
+    levels <- nlevels(data[[var]])
+    if (levels > 2) {
+      return("Nominal")
+    } else {
+      return("Nominal")  # Assuming binary factors are ordinal; adjust as needed
+    }
+  } else if (is.numeric(data[[var]])) {
+    return("Continuous")
+  } else if (is.integer(data[[var]])) {
+    return("Continuous")  # Assuming integers are ordinal; adjust as needed
+  } else if (is.character(data[[var]])) {
+    return("Nominal")
+  } else {
+    # print(paste("oops,", var, "is type other"))
+    return("Other")
+  }
+}
+
+# will change var types when the specified new type
+# does not match the curren type
+change_variable_types <- function(df, var_names, new_types) {
+  # Loop through the variable names
+  for (var in var_names) {
+    new_type <- new_types[var]
+    current_type <- translate_var_type(var = var, data = df)
+    # print(paste("Var:", var, "Current type:", current_type, "New type:", new_type, "Head:", head(df[[var]])))
+    
+    # Check if the new type is different from the current type
+    if (new_type != current_type) {
+      # Apply the type change based on the new type
+      if (new_type == "Continuous") {
+        df[[var]] <- as.numeric(df[[var]])
+      } else if (new_type == "Nominal") {
+        # print("changing to nominal!")
+        df[[var]] <- as.factor(df[[var]])
+      } else if (new_type == "Ordinal") {
+        # For ordinal, ensure the variable is a factor first
+        df[[var]] <- factor(df[[var]])
+        # Then set the class to "ordered"
+        df[[var]] <- ordered(df[[var]])
+      }
+    }
+  }
+  return(df)
 }

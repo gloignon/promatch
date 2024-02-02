@@ -185,8 +185,11 @@ server <- function(input, output, session) {
     shiny.i18n::update_lang(input$selected_language)
   })
   
+  # Initialize df_unmatched as a reactiveVal
+  df_unmatched <- reactiveVal()
+  
   ## File upload ----
-  data <- reactive({
+  observe({
     req(input$file1)
     inFile <- input$file1
     
@@ -231,7 +234,7 @@ server <- function(input, output, session) {
     
     # df <- janitor::clean_names(df, case = "none")
     df <- cleanUploadedFile(df)
-    return(df)
+    df_unmatched(df)
   })
   
   ## download button disable ----
@@ -270,12 +273,29 @@ server <- function(input, output, session) {
   
   # Update UI based on uploaded file
   output$varSelect <- renderUI({
-    df <- data()
+    df <- df_unmatched()
     if (exists("df") && is.data.frame(df)) {
       list(
-        selectInput("depVar", label = i18n$t("Select Treatment (Group) Variable"), choices = filterDichotomousVariables(df)),
-        selectInput("covariates", label = i18n$t("Select Covariates"), choices = names(df), multiple = TRUE, selectize = TRUE),
-        selectInput("exact_match", label = i18n$t("Select Exact matching variables (optional)"), choices = names(df), multiple = TRUE, selectize = TRUE)
+        selectInput(
+          "depVar",
+          label = i18n$t("Select Treatment (Group) Variable"),
+          choices = filterDichotomousVariables(df)
+        ),
+        selectInput(
+          "covariates",
+          label = i18n$t("Select Covariates"),
+          choices = names(df),
+          multiple = TRUE,
+          selectize = TRUE
+        ),
+        selectInput(
+          "exact_match",
+          label = i18n$t("Select Exact matching variables (optional)"),
+          choices = names(df),
+          multiple = TRUE,
+          selectize = TRUE
+        ),
+        actionButton(inputId = "var_config", icon = icon("gear"), label = "Variable properties")
       )
     }
   })
@@ -305,7 +325,7 @@ server <- function(input, output, session) {
   ## Matching ----
   observeEvent(input$match, {
     req(input$depVar, input$covariates)
-    df <- data()
+    df <- df_unmatched()
     df[df == ""] <- NA  # blank spaces are interpreted as NAs
     
     # Ensure the dependent variable is a factor
@@ -667,7 +687,92 @@ server <- function(input, output, session) {
     })
   })
   
+  # Variable type config ----
+  # Observe event for var_config button
+  observeEvent(input$var_config, {
+    # Create a modal dialog when the button is clicked
+    showModal(modalDialog(
+      title = "Variable Configuration",
+      
+      # UI for selecting variable types
+      h4("Select Variable Types"),
+      uiOutput("var_type_ui"),
+      
+      # Modal footer with action buttons
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("save_var_config", "Save Configuration")
+      )
+    ))
+  })
   
+  # UI for variable type selection with current type display
+  output$var_type_ui <- renderUI({
+    req(df_unmatched())  # Ensure data is available
+    df <- df_unmatched()  # Your actual dataset
+    combined_vars <- c(input$covariates, input$exact_match)
+    
+    my_icons <- c("<i class='fa-solid fa-ruler'></i> Continuous",
+                  "<i class='fa-solid fa-list'></i> Nominal",
+                  "<i class='fa-solid fa-arrow-up-wide-short'></i> Ordinal"
+    )
+
+    # Create a selectInput for each variable
+    var_type_inputs <- lapply(combined_vars, function(var) {
+      current_type <- translate_var_type(var, df)
+      shinyWidgets::pickerInput(
+          inputId = paste0("var_type_", var),
+          label = var,
+          choices = c("Continuous", "Nominal", "Ordinal"),
+          selected = current_type,
+          choicesOpt = list(content = my_icons)
+      )
+    })
+    do.call(tagList, var_type_inputs)
+  })
+  
+  # # Observe event for save_var_config button in modal
+  # observeEvent(input$save_var_config, {
+  #   # Code to handle the saving of variable configurations
+  #   
+  #   # For demonstration, print the selected types to the console
+  #   combined_vars <- c(input$covariates, input$exact_match)
+  #   selected_types <- sapply(combined_vars, function(var) {
+  #     input[[paste0("var_type_", var)]]
+  #   })
+  #   print(selected_types)
+  #   
+  #   # Close the modal after saving
+  #   removeModal()
+  # })
+  # 
+  observeEvent(input$save_var_config, {
+    
+    # Save the selections
+    current_covariate_selections <- input$covariates
+    current_exact_match_selections <- input$exact_match
+    
+    # Gather the new types selected by the user
+    combined_vars <- c(input$covariates, input$exact_match)
+    new_types <- sapply(combined_vars, function(var) {
+      input[[paste0("var_type_", var)]]
+    }, USE.NAMES = TRUE)
+    
+    # head(df_unmatched())
+    # Call the function to update the variable types in df_matched_data
+    updated_df <- change_variable_types(df = df_unmatched(), var_names = combined_vars, 
+                                        new_types = new_types)
+
+    df_unmatched(updated_df) # we update the reactiveVal
+    
+    # Restore the selected variables in the selectInput boxes
+    updateSelectInput(session, "covariates", selected = current_covariate_selections)
+    updateSelectInput(session, "exact_match", selected = current_exact_match_selections)
+    
+    # Close the modal after saving
+    removeModal()
+  })
+
 }
 
 # # Run the application 

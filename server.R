@@ -1,7 +1,7 @@
 server <- function(input, output, session) {
   
   ## Constants ----
-  DOWNLOAD_SIZE_LIMIT <- 5
+  DOWNLOAD_SIZE_LIMIT <- 5  # max size in megs, above that the matched data will be downloaded as a .zip 
   
   # methods that don't support caliper
   v_no_caliper_methods <- c("quick", "optimal", "exact", "NULL")
@@ -262,6 +262,9 @@ server <- function(input, output, session) {
   
   tests_summary <- reactiveVal()
   
+  # this will hold m.out, the matching object
+  match_object <- reactiveVal()
+  
   # This reactive expression will hold the matched data for download
   df_matched_data <- reactiveVal()  # Initialize a reactive value
   
@@ -370,16 +373,31 @@ server <- function(input, output, session) {
     }
     df_clean <- df[complete_rows, ]  # Remove rows with NA from the entire data frame (will keep all columns)
     
+    
     # Count new number of rows after removal
     new_row_count <- nrow(df_clean)
     
-    # Show a modal dialog indicating that matching is in progress
-    showModal(modalDialog(
-      title = i18n$t("Matching in Progress"),
-      i18n$t("Please wait, the matching process is running..."),
-      easyClose = FALSE,  # Prevent the user from closing the modal, which could be confusing
-      footer = NULL
-    ))
+    # if we removed rows, use a modal to tell the user how many rows were removed
+    if (new_row_count < initial_row_count) {
+      # showModal(modalDialog(
+      #   title = i18n$t("Had to remove some rows..."),
+      #   paste(i18n$t("Removed"), initial_row_count - new_row_count, i18n$t("rows with missing values.")),
+      #   easyClose = TRUE,
+      #   footer = modalButton("OK")
+      # ))
+      output_summary( paste(i18n$t("Had to remove"), initial_row_count - new_row_count, i18n$t("rows that had missing values.")))
+    }
+    
+    # if the new row count is zero, display the following modal
+    if (new_row_count == 0) {
+      showModal(modalDialog(
+        title = i18n$t("Error"),
+        i18n$t("Error: Not enough data to perform matching after removing rows with 'NA' values."),
+        easyClose = TRUE,
+        footer = modalButton("OK")
+      ))
+      return()
+    }
     
     if (input$showSlider == FALSE | is.null(input$caliper) |
         input$method %in% v_no_caliper_methods | input$distance %in% v_no_caliper_distances) {
@@ -389,9 +407,8 @@ server <- function(input, output, session) {
     }
     
     ## the actual matching ----
-    # Proceed with the matching if there are enough rows left
-    if (new_row_count > 0) {
-      tryCatch({
+    # display a progress bar while matching
+    withProgress(message = i18n$t("Preparing matching..."), value = 0, {
         # Perform the matching using the matchit function
         formula <- as.formula(paste(input$depVar, "~", paste(input$covariates, collapse = " + ")))
         
@@ -407,8 +424,11 @@ server <- function(input, output, session) {
           exact_match_vars <- unlist(strsplit(input$exact_match, "\\s*\\+\\s*"))
           # Remove any leading or trailing whitespace
           exact_match_vars <- trimws(exact_match_vars)
-          print(paste0("About to do an exact match on ", paste(exact_match_vars, collapse = ", ")))
+          # print(paste0("About to do an exact match on ", paste(exact_match_vars, collapse = ", ")))
         }
+        
+        # update progress bar
+        setProgress(0.2, message = i18n$t("Matching..."))
         
         # Perform the matching using the matchit function
         m.out <- matchit(
@@ -423,12 +443,20 @@ server <- function(input, output, session) {
           verbose = TRUE
         )
         
+        match_object(m.out)  # copy the matched object to the reactive value; used for model assessment
+        
+        # update progress bar
+        setProgress(.4, message = i18n$t("Matching complete. Extracting matched data..."))
+        
         # Extract the matched data
         matched <- match.data(object = m.out, data = df_clean)
         #TODO: user should be able to choose if match.data will output the distance or the prop.score
         
         # Update the reactive value with the matched data
         df_matched_data(matched)  # This line updates the reactive value
+        
+        # update progress bar
+        setProgress(.8, message = i18n$t("Preparing matched data for download..."))
         
         ### Prepare the file for download ----
         main_output_dir <- file.path(session_temp_dir, "main_output")
@@ -447,50 +475,31 @@ server <- function(input, output, session) {
           zip(zipfile = file.path(main_output_dir, "output.zip"), 
               files = file_path_name)
           unlink(file_path_name)
-          download$label <- "ZIPPY!!!"
         }
         
-        # Store and define the summary
-        output_summary(summary(m.out))
-        output$matchSummary <- renderPrint({
+        # Get the matching summary, rendered as text
+        summary_text <- capture.output(summary(m.out))
+      
+        # add the summary at the end of output_summary
+        output_summary(paste0(output_summary(), "\n", paste(summary_text, collapse = "\n")))
+        
+        output$matchSummary <- renderText({
           req(output_summary())  # Require that output_summary is not NULL
           output_summary()       # Output the stored summary
         })
         
-        # Remove the loading message and show the "Done!" message
-        removeModal()
-        showModal(modalDialog(
-          title = i18n$t("Success"),
-          i18n$t("Done! The matching is complete. You can now download the matched data."),
-          easyClose = TRUE
-        ))
-      }, error = function(e) {
-        # Capture the call that caused the error
-        error_call <- conditionCall(e)
-        if (!is.null(error_call)) {
-          # Convert the call to a character string for printing
-          call_msg <- paste(i18n$t("Error in"), deparse(error_call)[1])
-        } else {
-          call_msg <- ""
-        }
+        # final progress update
+        setProgress(1, message = i18n$t("Matching complete. Matched data available for download."))
         
-        # Show a more informative error message
-        showModal(modalDialog(
-          title = i18n$t("Error in matchit"),
-          paste(i18n$t("Error: "), e$message, call_msg),
-          easyClose = TRUE,
-          footer = modalButton("OK")
-        ))
-      })
-    } else {
-      showModal(modalDialog(
-        title = i18n$t("Error"),
-        i18n$t("Error: Not enough data to perform matching after removing rows with 'NA' values."),
-        easyClose = TRUE,
-        footer = modalButton("OK")
-      ))
-    }
-  })
+        # Remove the loading message and show the "Done!" message
+        # removeModal()
+        # showModal(modalDialog(
+        #   title = i18n$t("Success"),
+        #   i18n$t("Done! The matching is complete. You can now download the matched data."),
+        #   easyClose = TRUE
+        # ))
+    })  # end of withProgress statement
+  })  # end of observeEvent matching
   
   # info box
   observeEvent(input$info_click, {
@@ -507,7 +516,7 @@ server <- function(input, output, session) {
       easyClose = TRUE,
       footer = modalButton("Close")
     ))
-  })
+  }) 
   
   # Main download handler -----
   output$download <- downloadHandler(
@@ -632,60 +641,89 @@ server <- function(input, output, session) {
     # print(paste("File exists:", file.exists(filePath)))
     includeHTML(filePath)
   })
-
-  # Diagnostic plots ----
-  # Create plot tag list 
-  output$diagnosticPlots <- renderUI({
-    req(df_matched_data(), input$covariates, input$depVar)
-    df <- df_matched_data()  # Replace with your actual data
-    
-    # Filter only continuous covariates
-    continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
-    req(length(continuous_covariates) > 0)
-# 
-#     plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
-#       plotname <- paste("plot", i, sep = "_")
-#       plotOutput(plotname, width = "300", inline = FALSE)
-#     })
-#     do.call(tagList, plot_output_list)
-    # Wrap plotOutput in a div with the .balance-plot class
-    plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
-      plotname <- paste("plot", i, sep = "_")
-      div(plotOutput(plotname, width = "400"), class = "balance-plot")
-    })
-    
-    # Wrap the list of divs in another div with .plots-container class
-    div(class = "plots-container", plot_output_list)
+  
+  # Diagnostic plots (with cobalt's love plot) ----
+  # Render the UI for the plot
+  output$love_plot <- renderUI({
+    # Only create the plotOutput if match_obj is not NULL
+    req(match_object())
+    plotOutput("lovePlot")
   })
   
-  # Dynamically create renderPlot for each plot
-  observe({
-    df <- df_matched_data()  # Ensure data is re-evaluated on change
-    continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
+  
+  # Generate the love plot
+  output$lovePlot <- renderPlot({
+    req(match_object())  # Ensure that match_obj is not NULL
     
-    lapply(seq_along(continuous_covariates), function(i) {
-      local({
-        plot_id <- paste("plot", i, sep = "_")
-        covariate <- continuous_covariates[i]
-        
-        output[[plot_id]] <- renderPlot({
-          ggplot(df,
-                 aes_string(
-                   x = input$depVar,
-                   y = covariate,
-                   group = input$depVar
-                 )) +
-            geom_boxplot() +
-            labs(y = covariate, x = input$depVar
-                 # title = paste("Boxplot of", covariate, "by", input$depVar)
-                 ) +
-            theme_minimal(base_size = 14) +
-            theme(plot.margin = unit(c(1, 1, 1, 1), "lines"))
-          
-        })
-      })
-    })
+    # if a caliper was specified, used that, otherwise use 0.2
+    caliper <- ifelse(is.null(input$caliper), 0.2, input$caliper)
+    
+    # Generate the love plot for the match object
+   love.plot(match_object(),
+              threshold = caliper,  # Set your threshold for standardized mean differences
+              abs = TRUE,
+              thresholds = .2,
+              drop.distance = TRUE,
+              stats = c("mean.diffs", "variance.ratios")
+    )
+    
   })
+  
+
+  
+#   # Diagnostic plots ----
+#   # Create plot tag list 
+#   output$diagnosticPlots <- renderUI({
+#     req(df_matched_data(), input$covariates, input$depVar)
+#     df <- df_matched_data()
+# 
+#     # Filter only continuous covariates
+#     continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
+#     req(length(continuous_covariates) > 0)
+# #
+# #     plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
+# #       plotname <- paste("plot", i, sep = "_")
+# #       plotOutput(plotname, width = "300", inline = FALSE)
+# #     })
+# #     do.call(tagList, plot_output_list)
+#     # Wrap plotOutput in a div with the .balance-plot class
+#     plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
+#       plotname <- paste("plot", i, sep = "_")
+#       div(plotOutput(plotname, width = "400"), class = "balance-plot")
+#     })
+# 
+#     # Wrap the list of divs in another div with .plots-container class
+#     div(class = "plots-container", plot_output_list)
+#   })
+
+  # # Dynamically create renderPlot for each plot
+  # observe({
+  #   df <- df_matched_data()  # Ensure data is re-evaluated on change
+  #   continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
+  # 
+  #   lapply(seq_along(continuous_covariates), function(i) {
+  #     local({
+  #       plot_id <- paste("plot", i, sep = "_")
+  #       covariate <- continuous_covariates[i]
+  # 
+  #       output[[plot_id]] <- renderPlot({
+  #         ggplot(df,
+  #                aes_string(
+  #                  x = input$depVar,
+  #                  y = covariate,
+  #                  group = input$depVar
+  #                )) +
+  #           geom_boxplot() +
+  #           labs(y = covariate, x = input$depVar
+  #                # title = paste("Boxplot of", covariate, "by", input$depVar)
+  #                ) +
+  #           theme_minimal(base_size = 14) +
+  #           theme(plot.margin = unit(c(1, 1, 1, 1), "lines"))
+  # 
+  #       })
+  #     })
+  #   })
+  # })
   
   # Variable type config ----
   # Observe event for var_config button

@@ -105,7 +105,7 @@ ui <- fluidPage(title = "promatch",
                    mainPanel(width=6,
                              br(),
                              downloadButton("download", label = i18n$t("Download Matched data")),
-                             br(),
+                             br(), br(),
                              verbatimTextOutput("matchSummary")
                    ),  # fin main panel onglet matching
                  )  # fin sidebar layout
@@ -148,8 +148,11 @@ ui <- fluidPage(title = "promatch",
                  fluidRow(
                    column(
                      width = 12, 
-                     div(class = "plots-container",  # Apply the container style
-                     uiOutput("diagnosticPlots"))
+                     # div(class = "plots-container",  # Apply the container style
+                     # uiOutput("diagnosticPlots")
+                     #)
+                     # uiOutput("bal_plot"),
+                     uiOutput("love_plot")
                    )
                  )
         ),  # fin vérif

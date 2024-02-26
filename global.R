@@ -9,36 +9,42 @@
 # - 2024-01-05  
 #   ajout traduction fr / en
 #   ajout exact matching parameter
-# - 2023-01-07
+# - 2024-01-07
 #   ajout fichier about / aide et son affichage bilingue
 #   déménagement vers github
 #   largeur d'affichage fixée à max 950 px
-# - 2023-01-08
+# - 2024-01-08
 #   ajout fichiers .zip
 #   fix: les variables exactes étaient ignorées
 # - 2023-01-22
 #   ajout onglet avancé
-# - 2023-01-24
+# - 2024-01-24
 #   fix onglet avancé
 #   correction affichage onglet matching
-# - 2023-01-25
+# - 2024-01-25
 #   Ajout traduction, documentation
 #   Ajout B-M test
-# - 2023-01-27
+# - 2024-01-27
 #   Fichier long converti en zip avant le téléchargement
 #   Ajout caliper
 #   Ajout method quick
-# - 2023-01-29
+# - 2024-01-29
 #   Conversion en trois fichiers, server.R, ui.R, global.R
-# - 2023-01-31
+# - 2024-01-31
 #   Ajout matching NULL
 #   caliper disparait quand méthode ou distance incompatible avec caliper
 #   filtrage des variables quand par 2 niveaux (ou 2 valeurs uniques)
 #   nettoyage du fichier lorsque téléversé
-# - 2023-02-01
+# - 2024-02-01
 #   le téléchargement principal va être un zip si le fichier est volumineux
 #   (le long format est toujours un zip)
 #   Ajout d'un onglet diagnostic rudimentaire
+# - 2024-02-02
+#   Ajout boite pour modifier type de variables
+# - 2024-02-26
+#   Amélioration des messages d'erreur lors du matching
+#   Barre de progrès plutôt que modal
+#   Message lorsque données retirées (NA) apparait dans le rapport (output_summary)
 
 library(tidyverse)
 library(shiny)
@@ -64,6 +70,8 @@ library(glmnet)  # for lasso
 library(quickmatch)  # for quick
 
 library(brunnermunzel)  # for BM tests
+
+library(cobalt)  # for matching assessment plot
 
 
 i18n <- Translator$new(translation_json_path = 'translation.json')

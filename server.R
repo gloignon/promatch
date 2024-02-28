@@ -184,9 +184,7 @@ server <- function(input, output, session) {
     # Here is where we update language in session
     shiny.i18n::update_lang(input$selected_language)
   })
-  
-  # Initialize df_unmatched as a reactiveVal
-  df_unmatched <- reactiveVal()
+
   
   ## File upload ----
   observe({
@@ -234,7 +232,7 @@ server <- function(input, output, session) {
     
     # df <- janitor::clean_names(df, case = "none")
     df <- cleanUploadedFile(df)
-    df_unmatched(df)
+    df_unmatched_data(df)
   })
   
   ## download button disable ----
@@ -268,6 +266,10 @@ server <- function(input, output, session) {
   # This reactive expression will hold the matched data for download
   df_matched_data <- reactiveVal()  # Initialize a reactive value
   
+  df_unmatched_data <- reactiveVal()
+  
+  df_clean_unmatched <- reactiveVal()
+  
   # Define a reactive expression that checks if the matched data is available and non-empty
   data_available <- reactive({
     # Check if df_matched_data is non-null and has more than 0 rows
@@ -276,7 +278,7 @@ server <- function(input, output, session) {
   
   # Update UI based on uploaded file
   output$varSelect <- renderUI({
-    df <- df_unmatched()
+    df <- df_unmatched_data()
     if (exists("df") && is.data.frame(df)) {
       list(
         selectInput(
@@ -298,7 +300,7 @@ server <- function(input, output, session) {
           multiple = TRUE,
           selectize = TRUE
         ),
-        actionButton(inputId = "var_config", icon = icon("gear"), label = "Variable properties")
+        actionButton(inputId = "var_config", icon = icon("gear"), label = i18n$t("Variable properties"))
       )
     }
   })
@@ -308,7 +310,7 @@ server <- function(input, output, session) {
     # Check if the method and distance allow for caliper
     if (!input$method %in% v_no_caliper_methods && !input$distance %in% v_no_caliper_distances) {
       # Return the checkbox
-      checkboxInput("showSlider", "Use caliper (matching tolerance)", value = input$showSlider)
+      checkboxInput("showSlider", i18n$t("Use caliper (matching tolerance)"), value = input$showSlider)
     }
 
   })
@@ -321,14 +323,14 @@ server <- function(input, output, session) {
       # Use a default value for 'caliper' if it's NULL or uninitialized
       caliperValue <- ifelse(is.null(input$caliper), 0.2, input$caliper)
       
-      sliderInput("caliper", "Caliper", min = 0.05, max = 1, value = caliperValue, step = 0.05)
+      sliderInput("caliper", i18n$t("Caliper"), min = 0.05, max = 1, value = caliperValue, step = 0.05)
     }
   })
   
   ## Matching ----
   observeEvent(input$match, {
     req(input$depVar, input$covariates)
-    df <- df_unmatched()
+    df <- df_unmatched_data()
     df[df == ""] <- NA  # blank spaces are interpreted as NAs
     
     # Ensure the dependent variable is a factor
@@ -446,14 +448,15 @@ server <- function(input, output, session) {
         match_object(m.out)  # copy the matched object to the reactive value; used for model assessment
         
         # update progress bar
-        setProgress(.4, message = i18n$t("Matching complete. Extracting matched data..."))
+        setProgress(.4, message = i18n$t("Extracting matched data..."))
         
         # Extract the matched data
         matched <- match.data(object = m.out, data = df_clean)
         #TODO: user should be able to choose if match.data will output the distance or the prop.score
         
-        # Update the reactive value with the matched data
-        df_matched_data(matched)  # This line updates the reactive value
+        # Update the reactive values 
+        df_matched_data(matched)  # matched data
+        df_clean_unmatched(df_clean)  # cleaned unmatched data
         
         # update progress bar
         setProgress(.8, message = i18n$t("Preparing matched data for download..."))
@@ -630,7 +633,6 @@ server <- function(input, output, session) {
 
     }
   )
-
   
   # display about page in right language
   output$about_content <- renderUI({
@@ -642,112 +644,184 @@ server <- function(input, output, session) {
     includeHTML(filePath)
   })
   
-  # Diagnostic plots (with cobalt's love plot) ----
+  # Dx plots - love plots ----
   # Render the UI for the plot
   output$love_plot <- renderUI({
     # Only create the plotOutput if match_obj is not NULL
     req(match_object())
-    plotOutput("lovePlot")
+    tagList(
+      h3(i18n$t("Balance analysis (Love plots)")),
+      withSpinner(plotOutput("lovePlot"))
+    )
   })
   
   
-  # Generate the love plot
+  # Generate the love plots
   output$lovePlot <- renderPlot({
     req(match_object())  # Ensure that match_obj is not NULL
     
     # if a caliper was specified, used that, otherwise use 0.2
     caliper <- ifelse(is.null(input$caliper), 0.2, input$caliper)
     
-    # Generate the love plot for the match object
-   love.plot(match_object(),
-              threshold = caliper,  # Set your threshold for standardized mean differences
-              abs = TRUE,
-              thresholds = .2,
-              drop.distance = TRUE,
-              stats = c("mean.diffs", "variance.ratios")
-    )
+    p1 <- cobalt::love.plot(match_object(),
+                      binary = "std",
+                      stats = "m",
+                      abs = TRUE,
+                      drop.distance = TRUE, 
+                      title = "", 
+                      colors = c("blue", "red"), alpha = .8,
+                      sample.names = c(i18n$t("Unmatched"), i18n$t("Matched")),
+                      thresholds = caliper  # Set your threshold for standardized mean differences
+                      ) + 
+      labs(x = i18n$t("Absolute standardized mean differences")) + 
+      theme_minimal_hgrid(font_size = 14) +
+      theme(legend.title = element_blank())
+    
+    p2 <- cobalt::love.plot(match_object(),
+                            binary = "std",
+                            stats = "variance.ratio",
+                            drop.distance = TRUE, 
+                            sample.names = c(i18n$t("Unmatched"), i18n$t("Matched")),
+                            title = "",
+                            colors = c("blue", "red"), alpha = .8
+                            )  + 
+      labs(x = i18n$t("Variance ratios")) + 
+      theme_minimal_hgrid(font_size = 14) +
+      theme(legend.title = element_blank())
+    
+    p_combo <- cowplot::plot_grid(p1, p2, ncol = 1)
+      
+    return(p_combo)
     
   })
   
-
+#   # Diagnostic plots (by var) ----
+#   # Create plot tag list
   
-#   # Diagnostic plots ----
-#   # Create plot tag list 
-#   output$diagnosticPlots <- renderUI({
-#     req(df_matched_data(), input$covariates, input$depVar)
-#     df <- df_matched_data()
-# 
-#     # Filter only continuous covariates
-#     continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
-#     req(length(continuous_covariates) > 0)
-# #
-# #     plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
-# #       plotname <- paste("plot", i, sep = "_")
-# #       plotOutput(plotname, width = "300", inline = FALSE)
-# #     })
-# #     do.call(tagList, plot_output_list)
-#     # Wrap plotOutput in a div with the .balance-plot class
-#     plot_output_list <- lapply(seq_along(continuous_covariates), function(i) {
-#       plotname <- paste("plot", i, sep = "_")
-#       div(plotOutput(plotname, width = "400"), class = "balance-plot")
-#     })
-# 
-#     # Wrap the list of divs in another div with .plots-container class
-#     div(class = "plots-container", plot_output_list)
-#   })
-
-  # # Dynamically create renderPlot for each plot
-  # observe({
-  #   df <- df_matched_data()  # Ensure data is re-evaluated on change
-  #   continuous_covariates <- Filter(function(v) is_continuous(df, v), input$covariates)
-  # 
-  #   lapply(seq_along(continuous_covariates), function(i) {
-  #     local({
-  #       plot_id <- paste("plot", i, sep = "_")
-  #       covariate <- continuous_covariates[i]
-  # 
-  #       output[[plot_id]] <- renderPlot({
-  #         ggplot(df,
-  #                aes_string(
-  #                  x = input$depVar,
-  #                  y = covariate,
-  #                  group = input$depVar
-  #                )) +
-  #           geom_boxplot() +
-  #           labs(y = covariate, x = input$depVar
-  #                # title = paste("Boxplot of", covariate, "by", input$depVar)
-  #                ) +
-  #           theme_minimal(base_size = 14) +
-  #           theme(plot.margin = unit(c(1, 1, 1, 1), "lines"))
-  # 
-  #       })
-  #     })
-  #   })
-  # })
+  output$diagnosticPlots <- renderUI({
+    df <- df_matched_data()
+    # Check if the data exists and has the necessary rows
+    if (is.null(df) || nrow(df) == 0) {
+      # Return a message indicating no data is available
+      return(p(i18n$t("Please execute matching first."), align = "center"))
+    }
+  
+    req(df_matched_data(), df_clean_unmatched(), 
+        input$covariates, input$depVar)
+    valid_covariates <- c(input$covariates, input$exact_match) 
+    
+    # print(valid_covariates)
+    
+    req(length(valid_covariates) > 0)
+    
+    # create div with plot
+    plot_output_list <- lapply(seq_along(valid_covariates), function(i) {
+      plotname <- paste("plot", i, sep = "_")
+      div(
+        h4(valid_covariates[i]), # Include variable name in h3 tag
+        withSpinner(plotOutput(plotname)), # Wrap plotOutput with withSpinner
+        class = "balance-plot"
+      )
+    })
+    
+    tagList(
+      h3(i18n$t("Descriptive plots")),
+      div(class = "plots-container", plot_output_list)
+    )
+  })
+  
+  observe({
+    df <- df_matched_data()
+    df_raw <- df_clean_unmatched()
+    valid_covariates <- c(input$covariates, input$exact_match)
+    
+    lapply(seq_along(valid_covariates), function(i) {
+      local({
+        plot_id <- paste("plot", i, sep = "_")
+        covariate <- valid_covariates[i]
+        
+        output[[plot_id]] <- renderPlot({
+          if (is_continuous(df, covariate)) {
+            # Continuous variable plot
+  
+            pr <-
+              ggplot(df_raw, aes_string(x = covariate, fill = input$depVar, color = input$depVar)) +
+              geom_density(alpha = .5) +
+              labs(title = i18n$t("Unmatched data"), x = "", y = "") +
+              theme(legend.position = "top") +
+              theme_minimal(base_size = 12)
+            pm <-
+              ggplot(df, aes_string(x = covariate, fill = input$depVar, color = input$depVar)) +
+              geom_density(alpha = .5) +
+              labs(title = i18n$t("Matched data"), x = "", y = "") +
+              theme(legend.position = "none") +
+              theme_minimal(base_size = 12)
+            
+            # combine plots, with aligned x-axis 
+            # cowplot::plot_grid(pr, pm, ncol = 1, labels = c("Unmatched", "Matched"), align = "v", vjust = -1)
+            ggarrange(
+              pr,
+              pm,
+              ncol = 1,
+              legend = "top",
+              common.legend = TRUE
+            )
+          } else {
+            # Categorical variable plot (bar plot)
+            hm <- ggplot(df, aes_string(x = covariate, fill = input$depVar)) +
+              geom_bar(position = "dodge") +
+              labs(title = i18n$t("Matched data"), x = "", y = "", fill = input$depVar) +
+              theme_minimal(base_size = 12) +
+              theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x labels for better readability
+                    panel.grid.minor.y = element_blank(),
+                    panel.grid.major.y = element_blank() 
+                    )
+            
+           hr <- ggplot(df_raw, aes_string(x = covariate, fill = input$depVar)) +
+              geom_bar(position = "dodge") +
+              labs(title = i18n$t("Unmatched data"), x = "", y = "", fill = input$depVar) +
+              theme_minimal(base_size = 12) +
+              theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x labels for better readability
+                    panel.grid.minor.y = element_blank(),
+                    panel.grid.major.y = element_blank() 
+              )
+           ggarrange(
+             hr,
+             hm,
+             ncol = 1,
+             legend = "top",
+             common.legend = TRUE
+           )
+           
+          }
+        })
+      })
+    })
+  })
   
   # Variable type config ----
   # Observe event for var_config button
   observeEvent(input$var_config, {
     # Create a modal dialog when the button is clicked
     showModal(modalDialog(
-      title = "Variable Configuration",
+      title = i18n$t("Variable Configuration"),
       
       # UI for selecting variable types
-      h4("Select Variable Types"),
+      h4(i18n$t("Select Variable Types")),
       uiOutput("var_type_ui"),
       
       # Modal footer with action buttons
       footer = tagList(
-        modalButton("Cancel"),
-        actionButton("save_var_config", "Save Configuration")
+        modalButton(i18n$t("Cancel")),
+        actionButton("save_var_config", i18n$t("Save Configuration"))
       )
     ))
   })
   
   # UI for variable type selection with current type display
   output$var_type_ui <- renderUI({
-    req(df_unmatched())  # Ensure data is available
-    df <- df_unmatched()  # Your actual dataset
+    req(df_unmatched_data())  # Ensure data is available
+    df <- df_unmatched_data()  # Your actual dataset
     combined_vars <- c(input$covariates, input$exact_match)
     
     my_icons <- c("<i class='fa-solid fa-ruler'></i> Continuous",
@@ -796,12 +870,11 @@ server <- function(input, output, session) {
       input[[paste0("var_type_", var)]]
     }, USE.NAMES = TRUE)
     
-    # head(df_unmatched())
     # Call the function to update the variable types in df_matched_data
-    updated_df <- change_variable_types(df = df_unmatched(), var_names = combined_vars, 
+    updated_df <- change_variable_types(df = df_unmatched_data(), var_names = combined_vars, 
                                         new_types = new_types)
 
-    df_unmatched(updated_df) # we update the reactiveVal
+    df_unmatched_data(updated_df) # we update the reactiveVal
     
     # Restore the selected variables in the selectInput boxes
     updateSelectInput(session, "covariates", selected = current_covariate_selections)

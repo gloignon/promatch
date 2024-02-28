@@ -45,11 +45,19 @@
 #   Amélioration des messages d'erreur lors du matching
 #   Barre de progrès plutôt que modal
 #   Message lorsque données retirées (NA) apparait dans le rapport (output_summary)
+#   dx plot est fait avec cobalt::love.plot()
+# - 2024-02-27
+#   Correction de bugs dans l'affichage des graphiques descriptifs
+#   Ajout de traductions
+# - 2024-02-28
+#   Fix graphiques descriptifs
+#   Ajout de traductions
 
 library(tidyverse)
 library(shiny)
 library(shinyjs)
 library(shinyWidgets)
+library(shinycssloaders)
 
 library(shiny.i18n)
 
@@ -72,7 +80,7 @@ library(quickmatch)  # for quick
 library(brunnermunzel)  # for BM tests
 
 library(cobalt)  # for matching assessment plot
-
+library(ggpubr)  # to combine plots
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
@@ -151,6 +159,7 @@ filterDichotomousVariables <- function(df) {
 cleanUploadedFile <- function(df) {
   df <- janitor::remove_constant(df)
   df <- janitor::clean_names(df, case = "none")
+  df <- as.tibble(df)
   return(df)
 }
 

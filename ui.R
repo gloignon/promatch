@@ -14,17 +14,18 @@ ui <- fluidPage(title = "promatch",
       .info-icon:hover {
         color: #0056b3; /* Darker shade when hovering, like a link */
       }
-      .container-fluid {  max-width: 950px; }
+      .container-fluid {  max-width: 1200px; }
       #file1-label {display:none;}
+      
+      /* make sure the plots occupy at most half the horizontal space, otherwise all the space */ 
       .balance-plot {
         /* Flex item style for individual plots */
         margin-right: 10px; /* Adjust the spacing between plots */
-        flex: 0 0 auto; /* Do not grow or shrink */
-      }
-      .balance-plot {
-        /* Flex item style for individual plots */
-        margin-right: 10px; /* Adjust the spacing between plots */
-        flex: 0 0 auto; /* Do not grow or shrink */
+        flex: 1 1 500px; /* Flex-grow, flex-shrink, flex-basis */ 
+        min-width: 400px; /* Minimum width of each plot */
+        max-width: 100%;
+        box-sizing: border-box; /* Make sure margins and paddings are included in the width calculation */
+      
       }
       .plots-container {
         /* Flex container style */
@@ -32,6 +33,8 @@ ui <- fluidPage(title = "promatch",
         flex-wrap: wrap;
         align-items: flex-start; /* Align items to the start of the cross axis */
         justify-content: flex-start; /* Align items to the start of the main axis */
+        gap: 10px; /* Adds space between plots */
+
       }
       hr {border: .5px solid #ddd; !important;}
       "
@@ -110,6 +113,20 @@ ui <- fluidPage(title = "promatch",
                    ),  # fin main panel onglet matching
                  )  # fin sidebar layout
         ),     # fin onglet matching
+        ## Panel Diagnostic ----
+        tabPanel(i18n$t("Balance check"), 
+                 id = "diagnostic",
+                 fluidRow(
+                   column(
+                     width = 12, 
+                     div(class = "plots-container",  # Apply the container style
+                         uiOutput("diagnosticPlots")
+                     ),
+                     # uiOutput("bal_plot"),
+                     uiOutput("love_plot")
+                   )
+                 )
+        ),  # fin vérif
         ## Panel Advanced -----
         tabPanel(i18n$t("Advanced"),
                  sidebarLayout(
@@ -128,7 +145,7 @@ ui <- fluidPage(title = "promatch",
                                 br(),
                                 downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data")),
                                 br(),
-                                h4("Repeated tests"),
+                                h4(i18n$t("Statistical tests")),
                                 selectInput(
                                   "repeated_tests",
                                   label = i18n$t("Select a test"),
@@ -142,20 +159,6 @@ ui <- fluidPage(title = "promatch",
                    )
                  )
         ),  # fin Avancé
-        ## Panel Diagnostic ----
-        tabPanel(i18n$t("Balance check"), 
-                 id = "diagnostic",
-                 fluidRow(
-                   column(
-                     width = 12, 
-                     # div(class = "plots-container",  # Apply the container style
-                     # uiOutput("diagnosticPlots")
-                     #)
-                     # uiOutput("bal_plot"),
-                     uiOutput("love_plot")
-                   )
-                 )
-        ),  # fin vérif
         ## Panel help ----
         tabPanel(i18n$t("Help / About"),
                  fluidRow(

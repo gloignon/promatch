@@ -32,6 +32,33 @@
     {"en": "Available variables:", "fr": "Variables disponibles :"},
     {"en": "Selected variables:", "fr": "Variables sélectionniées :"},
     {"en": "Select a test", "fr": "Choisir un test"},
-    {"en": "Run comparisons", "fr": "Exécuter les tests"}
+    {"en": "Run comparisons", "fr": "Exécuter les tests"},
+    {"en": "Balance check", "fr": "Vérification"},
+    {"en": "Please execute matching first.", "fr": "Veuillez d'abord procéder à l'appariement."},
+    {"en": "Matching complete. Matched data available for download.", "fr": "Appariement complété. Fichier de données appariées disponible pour téléchargement."},
+    {"en": "Extracting matched data...", "fr": "Extraction des données appariées..."},
+    {"en": "Preparing matched data for download...", "fr": "Préparation du fichier pour téléchargement..."},
+    {"en": "Descriptive plots", "fr": "Graphiques descriptifs"},
+    {"en": "Balance analysis (Love plots).", "fr": "Analyse de l'équilibre des variables (graphes de Love)"},
+    {"en": "Unmatched data", "fr": "Données non-appariées"},
+    {"en": "Matched data", "fr": "Données appariées"},
+    {"en": "Absolute standardized mean differences", "fr": "Différences des moyennes standardisées (val. absolue)"},
+    {"en": "Variance ratios", "fr": "Ratios des variances"},
+    {"en": "Use caliper (matching tolerance)", "fr": "Utiliser un seuil de tolérance"},
+    {"en": "Caliper", "fr": "Seuil"},
+    {"en": "Cancel", "fr": "Annuler"},
+    {"en": "Matching...", "fr": "Appariement..."},
+    {"en": "Preparing matching...", "fr": "Préparation de l'appariement..."},
+    {"en": "Had to remove", "fr": "Promatch a retiré"},
+    {"en": "rows that had missing values.", "fr": "lignes (observations) contenant des données manquantes."},
+    {"en": "Variable properties", "fr": "Propriétés des variables"},
+    {"en": "Variable Configuration", "fr": "Configuration des variables"},
+    {"en": "Select Variable Types", "fr": "Sélectionner les types de variables"},
+    {"en": "Save Configuration", "fr": "Enregistrer la configuration"},
+    {"en": "Sample", "fr": "Échantillon"},
+    {"en": "Statistical tests", "fr": "Tests statistiques"}
+
+
+
   ]
 }

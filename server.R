@@ -28,6 +28,7 @@ server <- function(input, output, session) {
   ## setting up ----
   modalContent <- reactiveVal("")  # for info boxes
 
+  
   ## Advanced tab ----
   # Reactive value for storing available variables
   availableVarsOnMatch <- reactiveVal()
@@ -42,6 +43,10 @@ server <- function(input, output, session) {
       # Exclude selected variables in depVar, covariates, and exact_match
       selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
       availableVars <- setdiff(allVars, selectedVars)
+      
+      # for now, this module only does dichotomous variables, so we'll limit the choice again
+      dichoVars <- filterDichotomousVariables(df_matched_data())
+      availableVars <- intersect(availableVars, dichoVars)  # available AND dichotomous
       
       # Update the multiInput choices
       updateMultiInput(
@@ -115,35 +120,9 @@ server <- function(input, output, session) {
       } else {  # No error
         tests_summary(result_t_test) 
       }
-    } else if (selected_test == "Proportions") {
-      df_props <- df_long_data %>%
-        filter(!is.na(score)) %>% 
-        group_by(.group, variable) %>%
-        summarise(
-          success = mean(score, na.rm = T),
-          fail = 1 - success,
-          n = n(),
-          n_success = n * success,
-          .groups = 'drop'
-        ) %>% pivot_wider(
-          id_cols = variable,
-          names_from = .group, 
-          values_from = c(success, n, n_success)
-        ) %>% 
-        group_by(variable) %>%
-        mutate(across(where(is.numeric), round, 2)) %>% 
-        mutate(p_value = prop.test(
-          x = c(!!sym(paste0("n_success_", unique_levels[1])),
-                !!sym(paste0("n_success_", unique_levels[2]))),
-          n = c(!!sym(paste0("n_", unique_levels[1])),
-                !!sym(paste0("n_", unique_levels[1])))
-        )$p.value %>% round(4) %>% format.pval(eps = .001)) %>% 
-        select(variable, 
-               !!sym(paste0("success_", unique_levels[1])),
-               !!sym(paste0("success_", unique_levels[2])),
-               p_value) %>% 
-        as.data.frame()
-      tests_summary(df_props)
+    } else if (selected_test == "Proportions test") {
+      result_props_tests <- try(run_props_tests(df_long_data, unique_levels))
+      tests_summary(result_props_tests)
     } else if(selected_test == "Brunner-Munzel") {
       result_BM_test <- try(
         df_long_data %>% group_by(variable) %>% 
@@ -165,7 +144,27 @@ server <- function(input, output, session) {
       } else {
         tests_summary(result_BM_test) 
       }
-    }
+    } # fin BM test
+    else if(selected_test == "Sensitivity analysis") {
+      result_sens_analysis <- 
+        sensitivity_analysis(response = df_long_data$score, 
+                             group = df_long_data$.group, 
+                             items = df_long_data$variable,
+                             subclass = df_long_data$subclass)
+      
+      tests_summary(result_sens_analysis)  # print results 
+      
+      # make a plot
+      annotations_sens_analysis <- make_sens_annotations(result_sens_analysis, alpha = .05)
+      print(annotations_sens_analysis)
+      plot_sens <- make_sensitivity_plot(result_sens_analysis, annotations_sens_analysis)
+      # display the plot
+      output$test_plots <- renderPlot({ 
+        plot_sens
+      })
+      
+    } # fin sens analysis
+    
     
     # Store and define the summary
     # tests_summary(summary(m.out))
@@ -174,7 +173,10 @@ server <- function(input, output, session) {
       tests_summary()       # Output the stored summary
     })
     
+ 
+    
   })
+  
   
   
   ## language selector ----

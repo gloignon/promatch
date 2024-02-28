@@ -36,6 +36,12 @@ ui <- fluidPage(title = "promatch",
         gap: 10px; /* Adds space between plots */
 
       }
+      
+      #test_plots img{
+       min_width: 150px;
+      }
+      #repeated_tests_output {overflow-y: scroll; max-height: 300px;}
+      
       hr {border: .5px solid #ddd; !important;}
       "
   )
@@ -131,6 +137,7 @@ ui <- fluidPage(title = "promatch",
         tabPanel(i18n$t("Advanced"),
                  sidebarLayout(
                    sidebarPanel(width = 6,
+                                p("Note: this tab currently works only for dichotomous (binary) measurements, e.g. success/failure."),
                                 # Use multiInput for advanced variable selection
                                 multiInput(
                                   inputId = "advancedVars", 
@@ -148,14 +155,15 @@ ui <- fluidPage(title = "promatch",
                                 h4(i18n$t("Statistical tests")),
                                 selectInput(
                                   "repeated_tests",
-                                  label = i18n$t("Select a test"),
-                                  choices = c("T-test", "Proportions", "Brunner-Munzel"), 
+                                  label = i18n$t("Select a comparison method"),
+                                  choices = c("Proportions test", "Sensitivity analysis"), 
                                   selectize = FALSE
                                 ),
                                 actionButton(inputId = "run_test", label = i18n$t("Run comparisons"))
                    ),
                    mainPanel(width = 6,
-                             verbatimTextOutput("repeated_tests_output")
+                             verbatimTextOutput("repeated_tests_output"),
+                             plotOutput("test_plots")
                    )
                  )
         ),  # fin Avancé

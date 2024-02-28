@@ -150,20 +150,25 @@ ui <- fluidPage(title = "promatch",
                                   # ) # Enable live search and actions box
                                 ),
                                 br(),
-                                downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data")),
+                                # h4(i18n$t("Statistical tests")),
+                                # selectInput(
+                                #   "repeated_tests",
+                                #   label = i18n$t("Select a comparison method"),
+                                #   choices = c("Proportions test", "Sensitivity analysis"), 
+                                #   selectize = FALSE
+                                # ),
+                                actionButton(inputId = "run_test", label = i18n$t("Run comparisons")),
                                 br(),
-                                h4(i18n$t("Statistical tests")),
-                                selectInput(
-                                  "repeated_tests",
-                                  label = i18n$t("Select a comparison method"),
-                                  choices = c("Proportions test", "Sensitivity analysis"), 
-                                  selectize = FALSE
-                                ),
-                                actionButton(inputId = "run_test", label = i18n$t("Run comparisons"))
+                                downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
+                                
                    ),
                    mainPanel(width = 6,
-                             verbatimTextOutput("repeated_tests_output"),
-                             plotOutput("test_plots")
+                             p("Proportions tests"),
+                             verbatimTextOutput("prop_test_output"),
+                             p("Sensitivity analysis"),
+                             plotOutput("test_plots"),
+                             verbatimTextOutput("sens_test_output")
+
                    )
                  )
         ),  # fin Avancé

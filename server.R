@@ -98,54 +98,60 @@ server <- function(input, output, session) {
     # df_long_data <- df_long_data %>%
     #   mutate(.group = recode(.group, unique_levels[1] = 1, unique_levels[2] = 0))
     
-    if (selected_test == "T-test") {
-      # Run t-test comparisons here
-      result_t_test <- try(
-        df_long_data %>% group_by(variable) %>% 
-          rstatix::t_test(score ~ .group) %>% 
-          mutate(p = format.pval(p, eps = .001)) %>% 
-          select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
-          mutate(across(where(is.numeric), round, 2)) %>% 
-          as.data.frame()
-      )
-      # Check if there was an error
-      if (inherits(result_t_test, "try-error")) {
-        showModal(modalDialog(
-          title = "Error",
-          "An error occurred while running the t-tests. Please check if the selected variables are appropriate for a t-test.",
-          easyClose = TRUE,
-          footer = modalButton("Close")
-        ))
-        tests_summary("Error.") 
-      } else {  # No error
-        tests_summary(result_t_test) 
-      }
-    } else if (selected_test == "Proportions test") {
+    # if (selected_test == "T-test") {
+    #   # Run t-test comparisons here
+    #   result_t_test <- try(
+    #     df_long_data %>% group_by(variable) %>% 
+    #       rstatix::t_test(score ~ .group) %>% 
+    #       mutate(p = format.pval(p, eps = .001)) %>% 
+    #       select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+    #       mutate(across(where(is.numeric), round, 2)) %>% 
+    #       as.data.frame()
+    #   )
+    #   # Check if there was an error
+    #   if (inherits(result_t_test, "try-error")) {
+    #     showModal(modalDialog(
+    #       title = "Error",
+    #       "An error occurred while running the t-tests. Please check if the selected variables are appropriate for a t-test.",
+    #       easyClose = TRUE,
+    #       footer = modalButton("Close")
+    #     ))
+    #     tests_summary("Error.") 
+    #   } else {  # No error
+    #     tests_summary(result_t_test) 
+    #   }
+
       result_props_tests <- try(run_props_tests(df_long_data, unique_levels))
-      tests_summary(result_props_tests)
-    } else if(selected_test == "Brunner-Munzel") {
-      result_BM_test <- try(
-        df_long_data %>% group_by(variable) %>% 
-          brunner_munzel_test(score ~ .group) %>% 
-          # mutate(p = format.pval(p, eps = .001)) %>% 
-          # select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
-          mutate(across(where(is.numeric), round, 2)) %>% 
-          as.data.frame()
-      )
-      # Check if there was an error
-      if (inherits(result_BM_test, "try-error")) {
-        showModal(modalDialog(
-          title = "Error",
-          "An error occurred while running the B-M tests. Please check if the selected variables are appropriate for a t-test.",
-          easyClose = TRUE,
-          footer = modalButton("Close")
-        ))
-        tests_summary("Error.") 
-      } else {
-        tests_summary(result_BM_test) 
-      }
-    } # fin BM test
-    else if(selected_test == "Sensitivity analysis") {
+      
+      
+      output$prop_test_output <- renderPrint({
+        result_props_tests     
+      })
+      
+      
+    # } else if(selected_test == "Brunner-Munzel") {
+    #   result_BM_test <- try(
+    #     df_long_data %>% group_by(variable) %>% 
+    #       brunner_munzel_test(score ~ .group) %>% 
+    #       # mutate(p = format.pval(p, eps = .001)) %>% 
+    #       # select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+    #       mutate(across(where(is.numeric), round, 2)) %>% 
+    #       as.data.frame()
+    #   )
+    #   # Check if there was an error
+    #   if (inherits(result_BM_test, "try-error")) {
+    #     showModal(modalDialog(
+    #       title = "Error",
+    #       "An error occurred while running the B-M tests. Please check if the selected variables are appropriate for a t-test.",
+    #       easyClose = TRUE,
+    #       footer = modalButton("Close")
+    #     ))
+    #     tests_summary("Error.") 
+    #   } else {
+    #     tests_summary(result_BM_test) 
+    #   }
+    # } # fin BM test
+
       result_sens_analysis <- 
         sensitivity_analysis(response = df_long_data$score, 
                              group = df_long_data$.group, 
@@ -163,16 +169,14 @@ server <- function(input, output, session) {
         plot_sens
       })
       
-    } # fin sens analysis
-    
     
     # Store and define the summary
     # tests_summary(summary(m.out))
-    output$repeated_tests_output <- renderPrint({
+    output$sens_test_output <- renderPrint({
       # req(tests_summary())  # Require that output_summary is not NULL
-      tests_summary()       # Output the stored summary
+      result_sens_analysis       # Output the stored summary
     })
-    
+
  
     
   })

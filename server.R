@@ -7,7 +7,7 @@ server <- function(input, output, session) {
   v_no_caliper_methods <- c("quick", "optimal", "exact", "NULL")
   
   # distance that don't support caliper
-  v_no_caliper_distances <- c("mahalanobis", "robust_mahalanobis")
+  v_no_caliper_distances <- c("robust_mahalanobis")
   
   ## temp folder management ----
   session_temp_dir <- makeSessionTempDir()  # temp dir for unzipping .zip files
@@ -123,7 +123,6 @@ server <- function(input, output, session) {
 
       result_props_tests <- try(run_props_tests(df_long_data, unique_levels))
       
-      
       output$prop_test_output <- renderPrint({
         result_props_tests     
       })
@@ -156,17 +155,19 @@ server <- function(input, output, session) {
         sensitivity_analysis(response = df_long_data$score, 
                              group = df_long_data$.group, 
                              items = df_long_data$variable,
-                             subclass = df_long_data$subclass)
+                             subclass = df_long_data$subclass, 
+                             # gamma_inc =  input$gamma_inc,
+                             max_gamma = input$max_gamma)
       
       tests_summary(result_sens_analysis)  # print results 
       
       # make a plot
-      annotations_sens_analysis <- make_sens_annotations(result_sens_analysis, alpha = .05)
+      annotations_sens_analysis <-
+        make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
       print(annotations_sens_analysis)
-      plot_sens <- make_sensitivity_plot(result_sens_analysis, annotations_sens_analysis)
       # display the plot
-      output$test_plots <- renderPlot({ 
-        plot_sens
+      output$sens_analysis_short <- renderPrint({ 
+        annotations_sens_analysis
       })
       
     
@@ -180,7 +181,6 @@ server <- function(input, output, session) {
  
     
   })
-  
   
   
   ## language selector ----
@@ -407,47 +407,73 @@ server <- function(input, output, session) {
       return()
     }
     
-    if (input$showSlider == FALSE | is.null(input$caliper) |
-        input$method %in% v_no_caliper_methods | input$distance %in% v_no_caliper_distances) {
-      caliper <- NULL
-    } else {
-      caliper <- input$caliper
-    }
-    
+
     ## the actual matching ----
     # display a progress bar while matching
     withProgress(message = i18n$t("Preparing matching..."), value = 0, {
         # Perform the matching using the matchit function
         formula <- as.formula(paste(input$depVar, "~", paste(input$covariates, collapse = " + ")))
         
+        # prepare the caliper var
+        if (input$showSlider == FALSE | is.null(input$caliper) |
+            input$method %in% v_no_caliper_methods | input$distance %in% v_no_caliper_distances) {
+          caliper <- NULL
+        } else {
+          caliper <- input$caliper
+        }
+        
+        # prepare the distance var
+        distance <- input$distance
+        
+        # prepare the mahalanobis formula
+        # this will allow to have both a prop score caliper and mahalanobis distance
+        if (!is.null(caliper) & input$distance == "mahalanobis") {
+          # format as a formula
+          mah_vars <- paste(input$covariates, collapse = "+")
+          mah_vars <- as.formula(paste("~", mah_vars))
+          distance <- "glm"
+        } else {
+          mah_vars <- NULL
+        }
+        
         # prepare the method var
         method <- NULL
         if (input$method != "NULL") {
           method <- input$method
         }
+        
         # Prepare the exact match variable, if needed
         exact_match_vars <- NULL
         if (!is.null(input$exact_match) && length(input$exact_match) > 0) {
-          # Split the string by '+' and trim whitespaces
-          exact_match_vars <- unlist(strsplit(input$exact_match, "\\s*\\+\\s*"))
-          # Remove any leading or trailing whitespace
-          exact_match_vars <- trimws(exact_match_vars)
-          # print(paste0("About to do an exact match on ", paste(exact_match_vars, collapse = ", ")))
+         exact_match_vars <- paste(input$exact_match, collapse = " + ")
+         exact_match_vars <- as.formula(paste("~", exact_match_vars))
         }
         
         # update progress bar
         setProgress(0.2, message = i18n$t("Matching..."))
         
+        # before running the matching, print the parameters to console
+        print(paste("Matching parameters:"))
+        print(formula)
+        print("exact match:")
+        print(exact_match_vars)
+        print(paste("distance: ", distance))
+        print(paste("method: ", method))
+        print(paste("caliper: ", caliper))
+        print(paste("mahalanobis variables: ", mah_vars))
+
+ 
         # Perform the matching using the matchit function
         m.out <- matchit(
           formula, 
           method = method, 
-          distance = input$distance, 
+          distance = distance, 
           data = df_clean, 
           exact = exact_match_vars,
           caliper = caliper,
           link = "linear.logit", # will apply the caliper to the logit
           std.caliper = TRUE,
+          mahvars = mah_vars,
           verbose = TRUE
         )
         
@@ -487,11 +513,35 @@ server <- function(input, output, session) {
         }
         
         # Get the matching summary, rendered as text
-        summary_text <- capture.output(summary(m.out))
+        list_summary <- summary(m.out)
+        
+        # remove call element from list_summary
+        list_summary$call <- NULL
+        
+        # reconstruct the summary without the call object
+        summary_text <- capture.output(print(list_summary))
+        summary_text <- paste(summary_text, collapse = "\n")
+        
+        # produce a summary of the matching, each element being only added if non-NULL
+        param_summary <- paste(
+          "Matching parameters:",
+          add_to_summary("treatment: ", input$depVar),
+          add_to_summary("covariates: ", paste(input$covariates, collapse = " + ")),
+          add_to_summary("exact match: ", paste(input$exact_match, collapse = " + ")),
+          add_to_summary("distance: ", distance),
+          add_to_summary("method: ", method),
+          add_to_summary("caliper: ", caliper),
+          add_to_summary("mahalanobis variables: ", paste(input$covariates, collapse = " + ")),
+          sep = ""
+        )
       
         # add the summary at the end of output_summary
-        output_summary(paste0(output_summary(), "\n", paste(summary_text, collapse = "\n")))
-        
+        output_summary(paste(
+          output_summary(), "\n\n",
+          param_summary, "\n",
+          summary_text
+          ))
+
         output$matchSummary <- renderText({
           req(output_summary())  # Require that output_summary is not NULL
           output_summary()       # Output the stored summary
@@ -680,7 +730,7 @@ server <- function(input, output, session) {
                       thresholds = caliper  # Set your threshold for standardized mean differences
                       ) + 
       labs(x = i18n$t("Absolute standardized mean differences")) + 
-      theme_minimal_hgrid(font_size = 14) +
+      theme_minimal(base_size = 16) +
       theme(legend.title = element_blank())
     
     p2 <- cobalt::love.plot(match_object(),
@@ -692,16 +742,17 @@ server <- function(input, output, session) {
                             colors = c("blue", "red"), alpha = .8
                             )  + 
       labs(x = i18n$t("Variance ratios")) + 
-      theme_minimal_hgrid(font_size = 14) +
+      theme_minimal(base_size = 16) +
       theme(legend.title = element_blank())
     
-    p_combo <- cowplot::plot_grid(p1, p2, ncol = 1)
+    # combine using ggpubr::ggarrange
+    p_combo <- ggpubr::ggarrange(p1, p2, ncol = 1, common.legend = TRUE, legend = "right")
       
     return(p_combo)
     
   })
   
-#   # Diagnostic plots (by var) ----
+#   # Dx plots (by var) ----
 #   # Create plot tag list
   
   output$diagnosticPlots <- renderUI({
@@ -737,10 +788,12 @@ server <- function(input, output, session) {
   })
   
   observe({
+    req(df_matched_data(), df_clean_unmatched(), input$covariates, input$depVar)
     df <- df_matched_data()
     df_raw <- df_clean_unmatched()
     valid_covariates <- c(input$covariates, input$exact_match)
-    
+    dep_var <- input$depVar
+  
     lapply(seq_along(valid_covariates), function(i) {
       local({
         plot_id <- paste("plot", i, sep = "_")
@@ -749,19 +802,18 @@ server <- function(input, output, session) {
         output[[plot_id]] <- renderPlot({
           if (is_continuous(df, covariate)) {
             # Continuous variable plot
-  
             pr <-
-              ggplot(df_raw, aes_string(x = covariate, fill = input$depVar, color = input$depVar)) +
+              ggplot(df_raw, aes(x = .data[[covariate]], fill = .data[[dep_var]], color = .data[[dep_var]])) +
               geom_density(alpha = .5) +
               labs(title = i18n$t("Unmatched data"), x = "", y = "") +
               theme(legend.position = "top") +
-              theme_minimal(base_size = 12)
+              ggpubr::theme_pubclean(base_size = 12)
             pm <-
-              ggplot(df, aes_string(x = covariate, fill = input$depVar, color = input$depVar)) +
+              ggplot(df, aes(x = .data[[covariate]], fill = .data[[dep_var]], color = .data[[dep_var]])) +
               geom_density(alpha = .5) +
               labs(title = i18n$t("Matched data"), x = "", y = "") +
               theme(legend.position = "none") +
-              theme_minimal(base_size = 12)
+              ggpubr::theme_pubclean(base_size = 12)
             
             # combine plots, with aligned x-axis 
             # cowplot::plot_grid(pr, pm, ncol = 1, labels = c("Unmatched", "Matched"), align = "v", vjust = -1)
@@ -774,20 +826,20 @@ server <- function(input, output, session) {
             )
           } else {
             # Categorical variable plot (bar plot)
-            hm <- ggplot(df, aes_string(x = covariate, fill = input$depVar)) +
+            hm <- ggplot(df, aes(x = .data[[covariate]], fill = .data[[dep_var]])) +
               geom_bar(position = "dodge") +
-              labs(title = i18n$t("Matched data"), x = "", y = "", fill = input$depVar) +
+              labs(title = i18n$t("Matched data"), x = "", y = "", fill = dep_var) +
               theme_minimal(base_size = 12) +
-              theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x labels for better readability
+              theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x labels for better readability
                     panel.grid.minor.y = element_blank(),
                     panel.grid.major.y = element_blank() 
                     )
             
-           hr <- ggplot(df_raw, aes_string(x = covariate, fill = input$depVar)) +
+           hr <- ggplot(df_raw, aes(x = .data[[covariate]], fill = .data[[dep_var]])) +
               geom_bar(position = "dodge") +
-              labs(title = i18n$t("Unmatched data"), x = "", y = "", fill = input$depVar) +
+              labs(title = i18n$t("Unmatched data"), x = "", y = "", fill = dep_var) +
               theme_minimal(base_size = 12) +
-              theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x labels for better readability
+              theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x labels for better readability
                     panel.grid.minor.y = element_blank(),
                     panel.grid.major.y = element_blank() 
               )
@@ -889,8 +941,85 @@ server <- function(input, output, session) {
     # Close the modal after saving
     removeModal()
   })
+  
+  # display advanced tab var selection when needed
+  output$advanced_tab_selection <- renderUI({
+    # if there is no matched data, display a message and exit
+    if (is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
+      return(p(i18n$t("Please execute matching first.")))
+    }
+    allVars <- names(df_matched_data())
+    
+    selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
+    availableVars <- setdiff(allVars, selectedVars)
+    
+    # for now, this module only does dichotomous variables, so we'll limit the choice again
+    dichoVars <- filterDichotomousVariables(df_matched_data())
+    availableVars <- intersect(availableVars, dichoVars)  # available AND dichotomous
+    
+    
+    # combine the following elements in a list
+    list(
+      p(i18n$t("Note: this tab currently works only for dichotomous (binary) measurements, e.g. success/failure.")),
+      # Use multiInput for advanced variable selection
+      multiInput(
+        inputId = "advancedVars", 
+        autocomplete = TRUE, 
+        label = i18n$t("Select measurement variable(s)"),
+        choices = availableVars 
+      ),
+      br(),
+      # h4(i18n$t("Statistical tests")),
+      # selectInput(
+      #   "repeated_tests",
+      #   label = i18n$t("Select a comparison method"),
+      #   choices = c("Proportions test", "Sensitivity analysis"), 
+      #   selectize = FALSE
+      # ),
+      
+      # let user select the max gamma value (from 1 to 6, by increments of 1)
+      # and using a dynamic slider
+      
+      sliderInput("max_gamma", i18n$t("Max. gamma value for sensitivity analysis"), 
+                  min = 1, max = 5, value = 2, step = 1),
+      
+      # selectInput("gamma_inc", i18n$t("Test by increments of..."), 
+      #             choices = c(0.05, 0.1, 0.2), selected = .1),
+      
+      # offer three choices of alpha threshold: 0.05, 0.01, 0.001
+      selectInput("alpha_thres", i18n$t("Select alpha value"), 
+                  choices = c(0.01, 0.05, 0.001), selected = 0.05),
+      
+      actionButton(inputId = "run_test", label = i18n$t("Run tests")),
+      br(),br(),
+      downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
+    )
+    
+
+  })
+  
+  output$advanced_tab_results <- renderUI({
+    # if there is no matched data, display a message and exit
+    # if (is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
+    #   return(p(i18n$t("Please execute matching first."), align = "center"))
+    # }
+    req(df_matched_data(), tests_summary())
+
+    # combine the following elements in a list
+    list(
+      p("Proportions tests"),
+      verbatimTextOutput("prop_test_output"),
+      p("Sensitivity analysis"),
+      verbatimTextOutput("sens_analysis_short"),
+      verbatimTextOutput("sens_test_output")
+    )
+  
+
+  })
+
 
 }
+
 
 # # Run the application 
 # shinyApp(ui = ui, server = server)

@@ -23,7 +23,7 @@ ui <- fluidPage(title = "promatch",
         margin-right: 10px; /* Adjust the spacing between plots */
         flex: 1 1 500px; /* Flex-grow, flex-shrink, flex-basis */ 
         min-width: 400px; /* Minimum width of each plot */
-        max-width: 100%;
+        max-width: 600px;
         box-sizing: border-box; /* Make sure margins and paddings are included in the width calculation */
       
       }
@@ -34,11 +34,10 @@ ui <- fluidPage(title = "promatch",
         align-items: flex-start; /* Align items to the start of the cross axis */
         justify-content: flex-start; /* Align items to the start of the main axis */
         gap: 10px; /* Adds space between plots */
-
       }
       
       #test_plots img{
-       min_width: 150px;
+       min-width: 150px;
       }
       #repeated_tests_output {overflow-y: scroll; max-height: 300px;}
       
@@ -101,7 +100,7 @@ ui <- fluidPage(title = "promatch",
                      selectInput(
                        "distance",
                        label = i18n$t("Distance Measure"),
-                       choices = c("glm", "lasso", "gam", "mahalanobis", "robust_mahalanobis"),
+                       choices = c("glm", "lasso", "mahalanobis", "robust_mahalanobis"),
                        selectize = FALSE
                      ),
                      # Extra controls
@@ -137,38 +136,10 @@ ui <- fluidPage(title = "promatch",
         tabPanel(i18n$t("Advanced"),
                  sidebarLayout(
                    sidebarPanel(width = 6,
-                                p("Note: this tab currently works only for dichotomous (binary) measurements, e.g. success/failure."),
-                                # Use multiInput for advanced variable selection
-                                multiInput(
-                                  inputId = "advancedVars", 
-                                  autocomplete = TRUE, 
-                                  label = i18n$t("Select measurement variable(s)"),
-                                  choices = "" # Initial choices, updated via server
-                                  # options = list(
-                                  #   non_selected_header = i18n$t("Available variables:"),
-                                  #   selected_header = i18n$t("Selected variables:")
-                                  # ) # Enable live search and actions box
-                                ),
-                                br(),
-                                # h4(i18n$t("Statistical tests")),
-                                # selectInput(
-                                #   "repeated_tests",
-                                #   label = i18n$t("Select a comparison method"),
-                                #   choices = c("Proportions test", "Sensitivity analysis"), 
-                                #   selectize = FALSE
-                                # ),
-                                actionButton(inputId = "run_test", label = i18n$t("Run comparisons")),
-                                br(),
-                                downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
-                                
+                                uiOutput("advanced_tab_selection")
                    ),
                    mainPanel(width = 6,
-                             p("Proportions tests"),
-                             verbatimTextOutput("prop_test_output"),
-                             p("Sensitivity analysis"),
-                             plotOutput("test_plots"),
-                             verbatimTextOutput("sens_test_output")
-
+                        uiOutput("advanced_tab_results")
                    )
                  )
         ),  # fin Avancé
@@ -179,7 +150,6 @@ ui <- fluidPage(title = "promatch",
                      width = 8,
                      offset = 2,
                      uiOutput("about_content")
-                     
                    )
                  )
         )  # fin Help

@@ -53,6 +53,12 @@
 #   Fix graphiques descriptifs
 #   Ajout de traductions
 #   Ajout sens analysis
+# - 2024-02-29
+#   Fix choix mahalanobis + caliper
+#   Affichage paramètres matching
+#   Affichage conditionnel onglet avancé
+#   Choix du max gamma et du alpha dans l'analyse de sensibilité
+#   Retrait des plots sensibilité (inutiles) remplacés par tableau synthèse
 
 library(tidyverse)
 library(ggrepel)
@@ -76,7 +82,7 @@ library(janitor)
 library(optmatch)
 # library(randomForest)
 # library(rpart)
-library(mgcv)  # for gam
+# library(mgcv)  # for gam
 library(glmnet)  # for lasso
 library(quickmatch)  # for quick
 
@@ -163,7 +169,7 @@ filterDichotomousVariables <- function(df) {
 cleanUploadedFile <- function(df) {
   df <- janitor::remove_constant(df)
   df <- janitor::clean_names(df, case = "none")
-  df <- as.tibble(df)
+  df <- as_tibble(df)
   return(df)
 }
 
@@ -302,43 +308,66 @@ sensitivity_analysis <- function(response, items = "response", group, subclass, 
 # max_sig_gamma : the largest gamma for which the p value is below the alpha treshold
 # unconf_estimate : the upper_bound when gamma is exactly 1
 make_sens_annotations <- function(df, alpha = .05) {
-  df_sens_annotations <- df %>% 
+  # for each item, return the bound when gamma is exactly 1
+  df_unconf <- df %>% 
     group_by(measurement) %>% 
-    filter(upper_bound < alpha) %>% 
+    filter(gamma == 1) %>% 
     summarise(
-      max_sig_gamma = max(gamma),
-      unconf_estimate = min(upper_bound)
-    ) 
-  
-  # p_at_max_gamma : the upper_bound when gamma is at the max value in the data (e.g. 2)
-  df_sens_annotations_2 <- df %>% 
-    group_by(measurement) %>% 
-    filter(gamma == max(gamma)) %>% 
-    summarise(
-      p_at_max_gamma = max(upper_bound)
+      unconf_estimate = upper_bound
     )
-  # merge with df_sens_annotations
-  df_sens_annotations <- df_sens_annotations %>%
-    left_join(df_sens_annotations_2) %>%
+  
+  # find if, when gamma > 1, lower bound is larger than when gamma == 1
+  df_increase_test <- df %>% 
+    group_by(measurement) %>% 
+    filter(gamma > 1) %>% 
+    summarise(
+      lb_next = min(lower_bound)
+    )
+  
+  # merge
+  df_unconf <- df_unconf %>% 
+    left_join(df_increase_test) %>% 
     mutate(
-      limit = if_else(p_at_max_gamma > alpha, alpha, p_at_max_gamma),
-      label_1 = paste0("Γ = ", round(max_sig_gamma, 2), "\np = ", round(limit, 3)),
-      label_2 = paste0("Γ = 1 \np = ", round(unconf_estimate, 3)),
-      xpos_1 = max_sig_gamma,
-      ypos_1 = alpha,
-      xpos_2 = 1,
-      ypos_2 = unconf_estimate
+      increase = lb_next > unconf_estimate
     )
   
-  # pivot longer so that there is a single label column with the
-  df_sens_labels <- df_sens_annotations %>%
-    pivot_longer(
-      cols = c(xpos_1, ypos_1, xpos_2, ypos_2, label_1, label_2),
-      names_to = c(".value", "label_id"),
-      names_pattern = "(.*)_(.)"
-    )
+  # if the lower bound is increasing, then find the largest gamma at which the lower bound is below alpha
+  if (df_unconf[1, "increase"] == TRUE) {
+    df_max_sig <- df %>% 
+      group_by(measurement) %>% 
+      filter(lower_bound < alpha) %>% 
+      summarise(
+        max_sig_gamma = max(gamma)
+      )
+    df_p_at_max_gamma <- df %>% 
+      group_by(measurement) %>% 
+      filter(gamma == max(gamma)) %>% 
+      summarise(
+        p_at_max_gamma = max(lower_bound)
+      )
+  } else {
+    df_max_sig <- df %>% 
+      group_by(measurement) %>% 
+      filter(upper_bound < alpha) %>% 
+      summarise(
+        max_sig_gamma = max(gamma)
+      )
+    df_p_at_max_gamma <- df %>% 
+      group_by(measurement) %>% 
+      filter(gamma == max(gamma)) %>% 
+      summarise(
+        p_at_max_gamma = max(upper_bound)
+      )
+  }
   
-  return(df_sens_labels)
+  # merge 
+  df_sens_annotations <- df_unconf %>% 
+    left_join(df_max_sig) %>% 
+    left_join(df_p_at_max_gamma) %>% 
+    select(measurement, unconf_estimate, max_sig_gamma) %>% 
+    mutate(unconf_estimate = format.pval(unconf_estimate, eps = .001))
+  
+  return(df_sens_annotations)
 }
 
 
@@ -374,36 +403,12 @@ count_discrepant_pairs <- function(response, group, item, subclass) {
   return(df_compare)
 }
 
-make_sensitivity_plot <- function(analysis_data, labels, alpha = .05) {
-  print("Creating sens plot...")
-  result <- analysis_data %>% 
-    # filter(ITEM %in% df_sens_labels_model$ITEM) %>% 
-    ggplot(aes(x = gamma, y = upper_bound)) +
-    geom_line(linewidth = 1, alpha = .7) +
-    geom_hline(
-      yintercept = alpha,
-      linetype = "dashed",
-      color = "darkgrey",
-      linewidth = .5
-    ) +
-    facet_wrap(~ measurement, nrow = 3) +
-    labs(title = "",
-         x = "Gamma",
-         y = "p") +
-    geom_label_repel(
-      data = labels,
-      aes(
-        label = label,
-        x = xpos,
-        y = ypos,
-        fill = label_id
-      ),
-      box.padding = 1, 
-      nudge_y = .1,
-      nudge_x = .01,
-      show.legend = FALSE,
-      alpha = .6
-    ) + 
-    theme_bw(base_size = 12)
-  return(result)
+
+
+add_to_summary <- function(label, value) {
+  if (!is.null(value)) {
+    # If value is not NULL, append to summary
+    return(paste("\n", label, value, sep = ""))
+  }
+  return("")
 }

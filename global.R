@@ -63,6 +63,7 @@
 #   Prop test sur données non-appariées et appariées
 #   Meilleur affichage prop test
 #   Avertissement résultats qui ne sont plus à jour
+#   Bug fix prop tests
 
 library(tidyverse)
 # library(ggrepel)
@@ -233,32 +234,52 @@ change_variable_types <- function(df, var_names, new_types) {
 }
 
 run_props_tests <- function(df_long_data, unique_levels) {
+  # make sure df_long_data is long format data with a column named .group
+  if (!".group" %in% colnames(df_long_data)) {
+    stop("The data frame must have a column named .group")
+  }
+  
+  if (!"measurement" %in% colnames(df_long_data)) {
+    stop("The data frame must have a column named measurement")
+  }
+  
+  # # make sure we have at least 5 observations per group
+  # if (any(df_long_data %>% group_by(.group, measurement) %>% summarise(n = n()) %>% pull(n) < 5)) {
+  #   stop("At least one cell has fewer than 5 observations")
+  # }
+  
+  print(head(df_long_data))
   df_props <- df_long_data %>%
     filter(!is.na(score)) %>% 
     group_by(.group, measurement) %>%
     summarise(
-      success = mean(score, na.rm = T),
-      fail = 1 - success,
+      prop = mean(score, na.rm = T),
+      fail = 1 - prop,
       n = n(),
-      n_success = n * success,
+      n_success = n * prop,
       .groups = 'drop'
     ) %>% pivot_wider(
       id_cols = measurement,
       names_from = .group, 
-      values_from = c(success, n, n_success)
+      values_from = c(prop, n, n_success)
     ) %>% 
-    group_by(measurement) %>%
-    mutate(across(where(is.numeric), round, 2)) %>% 
-    mutate(p_value = prop.test(
+    ungroup()
+  
+  df_props <- df_props %>% 
+    mutate(p = prop.test(
       x = c(!!sym(paste0("n_success_", unique_levels[1])),
             !!sym(paste0("n_success_", unique_levels[2]))),
       n = c(!!sym(paste0("n_", unique_levels[1])),
-            !!sym(paste0("n_", unique_levels[1])))
+            !!sym(paste0("n_", unique_levels[2])))
     )$p.value %>% round(4) %>% format.pval(eps = .001)) %>% 
-    select(measurement, 
-           !!sym(paste0("success_", unique_levels[1])),
-           !!sym(paste0("success_", unique_levels[2])),
-           p_value) %>% 
+    # round the columns that start with prop_ to 2 decimals
+    mutate(across(starts_with("prop_"), ~ round(., 2))) %>%
+    select(measurement,
+           !!sym(paste0("n_", unique_levels[1])),
+           !!sym(paste0("n_", unique_levels[2])),
+           !!sym(paste0("prop_", unique_levels[1])),
+           !!sym(paste0("prop_", unique_levels[2])),
+           p) %>%
     as.data.frame()
   return(df_props)
 }

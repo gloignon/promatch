@@ -135,10 +135,10 @@ ui <- fluidPage(title = "promatch",
         ## Panel Advanced -----
         tabPanel(i18n$t("Advanced"), value = "advanced",
                  sidebarLayout(
-                   sidebarPanel(width = 6,
+                   sidebarPanel(width = 5,
                                 uiOutput("advanced_tab_selection")
                    ),
-                   mainPanel(width = 6,
+                   mainPanel(width = 7,
                         uiOutput("advanced_tab_results")
                    )
                  )

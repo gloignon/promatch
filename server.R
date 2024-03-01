@@ -564,7 +564,6 @@ server <- function(input, output, session) {
   # display about page in right language
   output$about_content <- renderUI({
     lang <- input$selected_language
-    print(lang)
     filePath <- if (lang == "fr") "www/apropros.html" else "www/about.html"
     # print(paste("Attempting to load file:", filePath))
     # print(paste("File exists:", file.exists(filePath)))
@@ -986,9 +985,16 @@ server <- function(input, output, session) {
     #     tests_summary(result_BM_test) 
     #   }
     # } # fin BM test
+    
+    # Run proportions test
     result_props_tests_unmatched <- try(run_props_tests(df_long_data_unmatched, unique_levels))
     result_props_tests_matched <- try(run_props_tests(df_long_data_matched, unique_levels))
     
+    # # TODO: rename the columns if the user is using French
+    # if (input$selected_language == "fr") {
+    # 
+    # } 
+    # 
     
     output$prop_test_output_unmatched <- renderTable({
       result_props_tests_unmatched
@@ -997,6 +1003,7 @@ server <- function(input, output, session) {
     output$prop_test_output_matched <- renderTable({
       result_props_tests_matched
     })
+    
     
     result_sens_analysis <- 
       sensitivity_analysis(response = df_long_data_matched$score, 

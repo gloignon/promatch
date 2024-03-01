@@ -59,9 +59,13 @@
 #   Affichage conditionnel onglet avancé
 #   Choix du max gamma et du alpha dans l'analyse de sensibilité
 #   Retrait des plots sensibilité (inutiles) remplacés par tableau synthèse
+# - 2024-03-01
+#   Prop test sur données non-appariées et appariées
+#   Meilleur affichage prop test
+#   Avertissement résultats qui ne sont plus à jour
 
 library(tidyverse)
-library(ggrepel)
+# library(ggrepel)
 library(ggpubr)  # to combine plots
 library(shiny)
 library(shinyjs)
@@ -76,7 +80,7 @@ library(MatchIt)
 # for opening xlsx files
 library(readxl)
 
-library(janitor)
+library(janitor)  # used to clean up columns, could be removed
 
 # explicit library calls so that the server can use the more advanced methods and distance measurements
 library(optmatch)
@@ -86,10 +90,9 @@ library(optmatch)
 library(glmnet)  # for lasso
 library(quickmatch)  # for quick
 
-library(brunnermunzel)  # for BM tests
+# library(brunnermunzel)  # for BM tests
 
-library(cobalt)  # for matching assessment plot
-
+library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
@@ -106,8 +109,8 @@ makeSessionTempDir <- function() {
 }
 
 # Transform df_matched_data to long format
-pivot_matched_data <- function(df_matched_data, cols_to_pivot) {
-  df <- df_matched_data()
+pivot_data <- function(df, cols_to_pivot) {
+
   validate(
     need(!is.null(cols_to_pivot) && length(cols_to_pivot) > 0, "No columns selected for pivoting."),
     # need(all(cols_to_pivot %in% colnames(df_matched_data)), "One or more selected columns do not exist in the data frame.")
@@ -119,7 +122,7 @@ pivot_matched_data <- function(df_matched_data, cols_to_pivot) {
   
   # pivot
   df_long_data <- df %>%
-    pivot_longer(cols = all_of(cols_to_pivot), names_to = "variable", values_to = "score")
+    pivot_longer(cols = all_of(cols_to_pivot), names_to = "measurement", values_to = "score")
   
   return(df_long_data)
 }
@@ -232,7 +235,7 @@ change_variable_types <- function(df, var_names, new_types) {
 run_props_tests <- function(df_long_data, unique_levels) {
   df_props <- df_long_data %>%
     filter(!is.na(score)) %>% 
-    group_by(.group, variable) %>%
+    group_by(.group, measurement) %>%
     summarise(
       success = mean(score, na.rm = T),
       fail = 1 - success,
@@ -240,11 +243,11 @@ run_props_tests <- function(df_long_data, unique_levels) {
       n_success = n * success,
       .groups = 'drop'
     ) %>% pivot_wider(
-      id_cols = variable,
+      id_cols = measurement,
       names_from = .group, 
       values_from = c(success, n, n_success)
     ) %>% 
-    group_by(variable) %>%
+    group_by(measurement) %>%
     mutate(across(where(is.numeric), round, 2)) %>% 
     mutate(p_value = prop.test(
       x = c(!!sym(paste0("n_success_", unique_levels[1])),
@@ -252,7 +255,7 @@ run_props_tests <- function(df_long_data, unique_levels) {
       n = c(!!sym(paste0("n_", unique_levels[1])),
             !!sym(paste0("n_", unique_levels[1])))
     )$p.value %>% round(4) %>% format.pval(eps = .001)) %>% 
-    select(variable, 
+    select(measurement, 
            !!sym(paste0("success_", unique_levels[1])),
            !!sym(paste0("success_", unique_levels[2])),
            p_value) %>% 
@@ -402,7 +405,6 @@ count_discrepant_pairs <- function(response, group, item, subclass) {
   
   return(df_compare)
 }
-
 
 
 add_to_summary <- function(label, value) {

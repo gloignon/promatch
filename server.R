@@ -25,37 +25,42 @@ server <- function(input, output, session) {
     sessionCleanup()
   })
   
-  ## setting up ----
+  # Reactive values ----
   modalContent <- reactiveVal("")  # for info boxes
-
+  output_summary <- reactiveVal()    # This will hold the summary of m.out
+  tests_summary <- reactiveVal()   # This will hold the summary of the tests
+  match_object <- reactiveVal()  #   # this will hold m.out, the matching object
+  df_matched_data <- reactiveVal()  # will hold the matched data
+  df_unmatched_data <- reactiveVal()  # hold the "raw" unmatched data after upload
+  df_clean_unmatched <- reactiveVal()  # holds the cleaned unmatched data 
+  availableVarsOnMatch <- reactiveVal()  #     Reactive value for storing available variables
+  adv_results_viewed <- reactiveVal(FALSE)  # will toggle to TRUE if adv tab results have been shown
+  matching_updated <- reactiveVal(FALSE)       # will toggle to TRUE if matching has been updated                           
   
-  ## Advanced tab ----
-  # Reactive value for storing available variables
-  availableVarsOnMatch <- reactiveVal()
-  
-  # Observe changes in data availability
-  observe({
-    # When data becomes available
-    if (data_available()) {
-      # Get all variables
-      allVars <- names(df_matched_data())
-      
-      # Exclude selected variables in depVar, covariates, and exact_match
-      selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
-      availableVars <- setdiff(allVars, selectedVars)
-      
-      # for now, this module only does dichotomous variables, so we'll limit the choice again
-      dichoVars <- filterDichotomousVariables(df_matched_data())
-      availableVars <- intersect(availableVars, dichoVars)  # available AND dichotomous
-      
-      # Update the multiInput choices
-      updateMultiInput(
-        session = session, 
-        inputId = "advancedVars",
-        choices = availableVars
-      )
-    }
-  })
+  # # Update the availableVarsOnMatch reactive value
+  # # Observe changes in data availability
+  # observe({
+  #   # When data becomes available
+  #   if (data_available()) {
+  #     # Get all variables
+  #     allVars <- names(df_matched_data())
+  #     
+  #     # Exclude selected variables in depVar, covariates, and exact_match
+  #     selectedVars <- unique(c(input$depVar, input$covariates, input$exact_match))
+  #     availableVars <- setdiff(allVars, selectedVars)
+  #     
+  #     # for now, this module only does dichotomous variables, so we'll limit the choice again
+  #     dichoVars <- filterDichotomousVariables(df_matched_data())
+  #     availableVars <- intersect(availableVars, dichoVars)  # available AND dichotomous
+  #     
+  #     # Update the multiInput choices
+  #     updateMultiInput(
+  #       session = session, 
+  #       inputId = "advancedVars",
+  #       choices = availableVars
+  #     )
+  #   }
+  # })
   
   # Observe changes in availableVarsOnMatch
   observe({
@@ -64,122 +69,6 @@ server <- function(input, output, session) {
       inputId = "advancedVars",
       choices = availableVarsOnMatch()
     )
-  })
-  
-  ## Multiple comparisons ----
-  observeEvent(input$run_test, {
-    selected_test <- input$repeated_tests
-    
-    # Using try to catch errors in pivot_matched_data
-    result <- try(
-      pivot_matched_data(df_matched_data, input$advancedVars)
-    )
-    
-    # Check if there was an error in pivot_matched_data
-    if (inherits(result, "try-error")) {
-      showModal(modalDialog(
-        title = "Error",
-        "An error occurred while transforming to long format. Please check your data, especially the selected measurement variables.",
-        easyClose = TRUE,
-        footer = modalButton("Close")
-      ))
-      return() # Stop further execution if error occurred
-    }
-    
-    # If no error, assign result to df_long_data
-    df_long_data <- result  
-    
-    # group_var <- sym(input$depVar)
-    df_long_data$.group <- df_long_data[[input$depVar]]
-    unique_levels <- unique(df_long_data$.group)
-    print(unique_levels)
-    
-    # # ensure the levels are coded as 1 and 0{{}}
-    # df_long_data <- df_long_data %>%
-    #   mutate(.group = recode(.group, unique_levels[1] = 1, unique_levels[2] = 0))
-    
-    # if (selected_test == "T-test") {
-    #   # Run t-test comparisons here
-    #   result_t_test <- try(
-    #     df_long_data %>% group_by(variable) %>% 
-    #       rstatix::t_test(score ~ .group) %>% 
-    #       mutate(p = format.pval(p, eps = .001)) %>% 
-    #       select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
-    #       mutate(across(where(is.numeric), round, 2)) %>% 
-    #       as.data.frame()
-    #   )
-    #   # Check if there was an error
-    #   if (inherits(result_t_test, "try-error")) {
-    #     showModal(modalDialog(
-    #       title = "Error",
-    #       "An error occurred while running the t-tests. Please check if the selected variables are appropriate for a t-test.",
-    #       easyClose = TRUE,
-    #       footer = modalButton("Close")
-    #     ))
-    #     tests_summary("Error.") 
-    #   } else {  # No error
-    #     tests_summary(result_t_test) 
-    #   }
-
-      result_props_tests <- try(run_props_tests(df_long_data, unique_levels))
-      
-      output$prop_test_output <- renderPrint({
-        result_props_tests     
-      })
-      
-      
-    # } else if(selected_test == "Brunner-Munzel") {
-    #   result_BM_test <- try(
-    #     df_long_data %>% group_by(variable) %>% 
-    #       brunner_munzel_test(score ~ .group) %>% 
-    #       # mutate(p = format.pval(p, eps = .001)) %>% 
-    #       # select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
-    #       mutate(across(where(is.numeric), round, 2)) %>% 
-    #       as.data.frame()
-    #   )
-    #   # Check if there was an error
-    #   if (inherits(result_BM_test, "try-error")) {
-    #     showModal(modalDialog(
-    #       title = "Error",
-    #       "An error occurred while running the B-M tests. Please check if the selected variables are appropriate for a t-test.",
-    #       easyClose = TRUE,
-    #       footer = modalButton("Close")
-    #     ))
-    #     tests_summary("Error.") 
-    #   } else {
-    #     tests_summary(result_BM_test) 
-    #   }
-    # } # fin BM test
-
-      result_sens_analysis <- 
-        sensitivity_analysis(response = df_long_data$score, 
-                             group = df_long_data$.group, 
-                             items = df_long_data$variable,
-                             subclass = df_long_data$subclass, 
-                             # gamma_inc =  input$gamma_inc,
-                             max_gamma = input$max_gamma)
-      
-      tests_summary(result_sens_analysis)  # print results 
-      
-      # make a plot
-      annotations_sens_analysis <-
-        make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
-      print(annotations_sens_analysis)
-      # display the plot
-      output$sens_analysis_short <- renderPrint({ 
-        annotations_sens_analysis
-      })
-      
-    
-    # Store and define the summary
-    # tests_summary(summary(m.out))
-    output$sens_test_output <- renderPrint({
-      # req(tests_summary())  # Require that output_summary is not NULL
-      result_sens_analysis       # Output the stored summary
-    })
-
- 
-    
   })
   
   
@@ -261,20 +150,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # This will hold the summary of m.out
-  output_summary <- reactiveVal()
-  
-  tests_summary <- reactiveVal()
-  
-  # this will hold m.out, the matching object
-  match_object <- reactiveVal()
-  
-  # This reactive expression will hold the matched data for download
-  df_matched_data <- reactiveVal()  # Initialize a reactive value
-  
-  df_unmatched_data <- reactiveVal()
-  
-  df_clean_unmatched <- reactiveVal()
   
   # Define a reactive expression that checks if the matched data is available and non-empty
   data_available <- reactive({
@@ -550,13 +425,9 @@ server <- function(input, output, session) {
         # final progress update
         setProgress(1, message = i18n$t("Matching complete. Matched data available for download."))
         
-        # Remove the loading message and show the "Done!" message
-        # removeModal()
-        # showModal(modalDialog(
-        #   title = i18n$t("Success"),
-        #   i18n$t("Done! The matching is complete. You can now download the matched data."),
-        #   easyClose = TRUE
-        # ))
+        matching_updated(TRUE)  # Update the flag to indicate new matching is available
+        # adv_results_viewed(FALSE)  # Reset stats viewed status since it's impossible we saw advanced results for the new matching
+
     })  # end of withProgress statement
   })  # end of observeEvent matching
   
@@ -711,7 +582,6 @@ server <- function(input, output, session) {
     )
   })
   
-  
   # Generate the love plots
   output$lovePlot <- renderPlot({
     req(match_object())  # Ensure that match_obj is not NULL
@@ -730,8 +600,10 @@ server <- function(input, output, session) {
                       thresholds = caliper  # Set your threshold for standardized mean differences
                       ) + 
       labs(x = i18n$t("Absolute standardized mean differences")) + 
-      theme_minimal(base_size = 16) +
-      theme(legend.title = element_blank())
+      ggpubr::theme_pubclean(base_size = 14) +
+      theme(legend.title = element_blank(),
+            plot.margin = unit(c(1, 1, 1, 1), "lines")
+      )
     
     p2 <- cobalt::love.plot(match_object(),
                             binary = "std",
@@ -742,12 +614,17 @@ server <- function(input, output, session) {
                             colors = c("blue", "red"), alpha = .8
                             )  + 
       labs(x = i18n$t("Variance ratios")) + 
-      theme_minimal(base_size = 16) +
+      ggpubr::theme_pubclean(base_size = 16) +
       theme(legend.title = element_blank())
     
     # combine using ggpubr::ggarrange
-    p_combo <- ggpubr::ggarrange(p1, p2, ncol = 1, common.legend = TRUE, legend = "right")
-      
+    p_combo <-
+      ggpubr::ggarrange(p1,
+                        p2,
+                        ncol = 1,
+                        common.legend = TRUE,
+                        legend = "right")
+    
     return(p_combo)
     
   })
@@ -987,8 +864,8 @@ server <- function(input, output, session) {
       #             choices = c(0.05, 0.1, 0.2), selected = .1),
       
       # offer three choices of alpha threshold: 0.05, 0.01, 0.001
-      selectInput("alpha_thres", i18n$t("Select alpha value"), 
-                  choices = c(0.01, 0.05, 0.001), selected = 0.05),
+      selectInput("alpha_thres", i18n$t("Alpha level"), 
+                  choices = c(0.1, 0.05, 0.01, 0.001), selected = 0.05),
       
       actionButton(inputId = "run_test", label = i18n$t("Run tests")),
       br(),br(),
@@ -1007,19 +884,167 @@ server <- function(input, output, session) {
 
     # combine the following elements in a list
     list(
-      p("Proportions tests"),
-      verbatimTextOutput("prop_test_output"),
-      p("Sensitivity analysis"),
-      verbatimTextOutput("sens_analysis_short"),
+      h4(i18n$t("Proportions tests - unmatched data")),
+      tableOutput("prop_test_output_unmatched"),
+      h4(i18n$t("Proportions tests - matched data")),
+      tableOutput("prop_test_output_matched"),
+      
+      h4(i18n$t("Sensitivity analysis")),
+      tableOutput("sens_analysis_short"),
       verbatimTextOutput("sens_test_output")
     )
-  
 
   })
 
 
-}
 
+  # Multiple comparisons =================
+  # this will trigger when we click the run button in the advanced tab
+  observeEvent(input$run_test, {
+    
+    req(input$depVar, input$advancedVars, df_matched_data(), df_clean_unmatched())
+    df_matched <- df_matched_data()
+    df_unmatched <- df_clean_unmatched()
+    
+    # selected_test <- input$repeated_tests
+    
+    # Using try to catch errors in pivot_matched_data
+    result_unmatched <- try(
+      pivot_data(df_unmatched, input$advancedVars)
+    )
+    
+    result_matched <- try(
+      pivot_data(df_matched, input$advancedVars)
+    )
+    
+    # Check if there was an error in pivot_matched or in pivot_unmatched
+    if (inherits(result_unmatched, "try-error") || inherits(result_matched, "try-error")) {
+      showModal(modalDialog(
+        title = "Error",
+        "An error occurred while transforming to long format. Please check your data, especially the selected measurement variables.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+      return() # Stop further execution if error occurred
+    }
+    
+    # If no error, assign result to df_long_data
+    df_long_data_unmatched <- result_unmatched  
+    df_long_data_matched <- result_matched  
+    
+    # group_var <- sym(input$depVar)
+    df_long_data_unmatched$.group <- df_long_data_unmatched[[input$depVar]]
+    df_long_data_matched$.group <- df_long_data_matched[[input$depVar]]
+    unique_levels <- unique(df_long_data_matched$.group)
+    
+    # # ensure the levels are coded as 1 and 0{{}}
+    # df_long_data <- df_long_data %>%
+    #   mutate(.group = recode(.group, unique_levels[1] = 1, unique_levels[2] = 0))
+    
+    # if (selected_test == "T-test") {
+    #   # Run t-test comparisons here
+    #   result_t_test <- try(
+    #     df_long_data %>% group_by(variable) %>% 
+    #       rstatix::t_test(score ~ .group) %>% 
+    #       mutate(p = format.pval(p, eps = .001)) %>% 
+    #       select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+    #       mutate(across(where(is.numeric), round, 2)) %>% 
+    #       as.data.frame()
+    #   )
+    #   # Check if there was an error
+    #   if (inherits(result_t_test, "try-error")) {
+    #     showModal(modalDialog(
+    #       title = "Error",
+    #       "An error occurred while running the t-tests. Please check if the selected variables are appropriate for a t-test.",
+    #       easyClose = TRUE,
+    #       footer = modalButton("Close")
+    #     ))
+    #     tests_summary("Error.") 
+    #   } else {  # No error
+    #     tests_summary(result_t_test) 
+    #   }
+    
+    # } else if(selected_test == "Brunner-Munzel") {
+    #   result_BM_test <- try(
+    #     df_long_data %>% group_by(variable) %>% 
+    #       brunner_munzel_test(score ~ .group) %>% 
+    #       # mutate(p = format.pval(p, eps = .001)) %>% 
+    #       # select(-c(".y.", "group1", "group2", "n1", "n2")) %>% 
+    #       mutate(across(where(is.numeric), round, 2)) %>% 
+    #       as.data.frame()
+    #   )
+    #   # Check if there was an error
+    #   if (inherits(result_BM_test, "try-error")) {
+    #     showModal(modalDialog(
+    #       title = "Error",
+    #       "An error occurred while running the B-M tests. Please check if the selected variables are appropriate for a t-test.",
+    #       easyClose = TRUE,
+    #       footer = modalButton("Close")
+    #     ))
+    #     tests_summary("Error.") 
+    #   } else {
+    #     tests_summary(result_BM_test) 
+    #   }
+    # } # fin BM test
+    result_props_tests_unmatched <- try(run_props_tests(df_long_data_unmatched, unique_levels))
+    result_props_tests_matched <- try(run_props_tests(df_long_data_matched, unique_levels))
+    
+    
+    output$prop_test_output_unmatched <- renderTable({
+      result_props_tests_unmatched
+    })
+    
+    output$prop_test_output_matched <- renderTable({
+      result_props_tests_matched
+    })
+    
+    result_sens_analysis <- 
+      sensitivity_analysis(response = df_long_data_matched$score, 
+                           group = df_long_data_matched$.group, 
+                           items = df_long_data_matched$measurement,
+                           subclass = df_long_data_matched$subclass, 
+                           # gamma_inc =  input$gamma_inc,
+                           max_gamma = input$max_gamma)
+    
+    tests_summary(result_sens_analysis)  # print results 
+    
+    # make a table
+    annotations_sens_analysis <-
+      make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
+    # print(annotations_sens_analysis)
+    # display the table
+    output$sens_analysis_short <- renderTable({
+      annotations_sens_analysis
+    })
+    
+    # Store and define the summary
+    # tests_summary(summary(m.out))
+    output$sens_test_output <- renderPrint({
+      # req(tests_summary())  # Require that output_summary is not NULL
+      result_sens_analysis       # Output the stored summary
+    })
+    
+    # The results are now current, we can update the toggle reactive value
+    adv_results_viewed(TRUE)
+    matching_updated(FALSE)  
+    
+  })
+  
+  # Detect when user navigates to the advanced stats tab
+  # Will warn the user about outdated results
+  observeEvent(input$main_tabs, {
+    # print("input tabsssss!")
+    # print(input$main_tabs)
+    # print(matching_updated())
+    if (input$main_tabs == "advanced" & matching_updated() == TRUE & adv_results_viewed() == TRUE) {
+      showModal(modalDialog(
+        title = i18n$t("New data available"),
+        i18n$t("New matched data is available. The results displayed here are not current, please update as needed.")
+      ))
+    }
+  })
+
+}
 
 # # Run the application 
 # shinyApp(ui = ui, server = server)

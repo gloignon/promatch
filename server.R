@@ -730,8 +730,10 @@ server <- function(input, output, session) {
                       thresholds = caliper  # Set your threshold for standardized mean differences
                       ) + 
       labs(x = i18n$t("Absolute standardized mean differences")) + 
-      theme_minimal(base_size = 16) +
-      theme(legend.title = element_blank())
+      ggpubr::theme_pubclean(base_size = 14) +
+      theme(legend.title = element_blank(),
+            plot.margin = unit(c(1, 1, 1, 1), "lines")
+      )
     
     p2 <- cobalt::love.plot(match_object(),
                             binary = "std",
@@ -742,12 +744,17 @@ server <- function(input, output, session) {
                             colors = c("blue", "red"), alpha = .8
                             )  + 
       labs(x = i18n$t("Variance ratios")) + 
-      theme_minimal(base_size = 16) +
+      ggpubr::theme_pubclean(base_size = 16) +
       theme(legend.title = element_blank())
     
     # combine using ggpubr::ggarrange
-    p_combo <- ggpubr::ggarrange(p1, p2, ncol = 1, common.legend = TRUE, legend = "right")
-      
+    p_combo <-
+      ggpubr::ggarrange(p1,
+                        p2,
+                        ncol = 1,
+                        common.legend = TRUE,
+                        legend = "right")
+    
     return(p_combo)
     
   })
@@ -987,8 +994,8 @@ server <- function(input, output, session) {
       #             choices = c(0.05, 0.1, 0.2), selected = .1),
       
       # offer three choices of alpha threshold: 0.05, 0.01, 0.001
-      selectInput("alpha_thres", i18n$t("Select alpha value"), 
-                  choices = c(0.01, 0.05, 0.001), selected = 0.05),
+      selectInput("alpha_thres", i18n$t("Alpha level"), 
+                  choices = c(0.1, 0.05, 0.01, 0.001), selected = 0.05),
       
       actionButton(inputId = "run_test", label = i18n$t("Run tests")),
       br(),br(),
@@ -1013,7 +1020,6 @@ server <- function(input, output, session) {
       verbatimTextOutput("sens_analysis_short"),
       verbatimTextOutput("sens_test_output")
     )
-  
 
   })
 

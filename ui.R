@@ -63,7 +63,7 @@ ui <- fluidPage(title = "promatch",
       
       titlePanel("promatch"),
       ## Panel Match ----
-      tabsetPanel(
+      tabsetPanel(id = "main_tabs",
         tabPanel(i18n$t("Match"), 
                  sidebarLayout(
                    sidebarPanel(
@@ -120,7 +120,7 @@ ui <- fluidPage(title = "promatch",
         ),     # fin onglet matching
         ## Panel Diagnostic ----
         tabPanel(i18n$t("Balance check"), 
-                 id = "diagnostic",
+                 value = "diagnostic",
                  fluidRow(
                    column(
                      width = 12, 
@@ -131,9 +131,9 @@ ui <- fluidPage(title = "promatch",
                      uiOutput("love_plot")
                    )
                  )
-        ),  # fin vérif
+        ),  # fin dx
         ## Panel Advanced -----
-        tabPanel(i18n$t("Advanced"),
+        tabPanel(i18n$t("Advanced"), value = "advanced",
                  sidebarLayout(
                    sidebarPanel(width = 6,
                                 uiOutput("advanced_tab_selection")

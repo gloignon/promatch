@@ -58,8 +58,14 @@
     {"en": "Sample", "fr": "Échantillon"},
     {"en": "Statistical tests", "fr": "Tests statistiques"},
     {"en": "Note: this tab currently works only for dichotomous (binary) measurements, e.g. success/failure.",
-      "fr": "Note: les fonctionnalités dans cet onglet ne s'appliquent actuellement qu'aux mesures dichotomiques (binaires), par exemple succès/échec."}
-
+      "fr": "Note: les fonctionnalités dans cet onglet ne s'appliquent actuellement qu'aux mesures dichotomiques (binaires), par exemple succès/échec."},
+    {"en": "Proportions tests - unmatched data", "fr": "Tests de proportions sur données non appariées"},
+    {"en": "Proportions tests - matched data", "fr": "Tests de proportions sur données appariées"},
+    {"en": "Sensitivity analysis", "fr": "Analyse de sensibilité"},
+    {"en": "Max. gamma value for sensitivity analysis", "fr": "Gamma max. pour analyse de sensibilité"},
+    {"en": "Alpha level", "fr": "Seuil alpha"},
+    {"en": "New data available", "fr": "Nouvelles données disponibles."},
+    {"en": "New matched data is available. The results displayed here are not current, please update as needed.", "fr": "De nouvelles données appariées sont disponibles. Les résultats affichés ici ne sont plus à jour, veuillez refaire au besoin."}
 
   ]
 }

@@ -61,7 +61,7 @@
 #   Retrait des plots sensibilité (inutiles) remplacés par tableau synthèse
 
 library(tidyverse)
-library(ggrepel)
+# library(ggrepel)
 library(ggpubr)  # to combine plots
 library(shiny)
 library(shinyjs)
@@ -76,7 +76,7 @@ library(MatchIt)
 # for opening xlsx files
 library(readxl)
 
-library(janitor)
+library(janitor)  # used to clean up columns, could be removed
 
 # explicit library calls so that the server can use the more advanced methods and distance measurements
 library(optmatch)
@@ -86,10 +86,9 @@ library(optmatch)
 library(glmnet)  # for lasso
 library(quickmatch)  # for quick
 
-library(brunnermunzel)  # for BM tests
+# library(brunnermunzel)  # for BM tests
 
-library(cobalt)  # for matching assessment plot
-
+library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
 i18n <- Translator$new(translation_json_path = 'translation.json')
@@ -402,7 +401,6 @@ count_discrepant_pairs <- function(response, group, item, subclass) {
   
   return(df_compare)
 }
-
 
 
 add_to_summary <- function(label, value) {

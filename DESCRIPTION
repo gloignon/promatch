@@ -13,15 +13,18 @@ Imports:
     shiny,
     shinyjs,
     shinyWidgets,
+    shinyWidgets,
+    shinycssloaders,
+    shiny.i18n,
     readxl,
     MatchIt,
     optmatch,
     quickmatch,
-    rpart,
-    mgcv,
     glmnet,
-    shiny.i18n,
-    tidyr
+    tidyverse,
+    ggpubr,
+    cobalt,
+    rbounds
 Remotes:
     # If you use GitHub packages, they can be listed here
 Suggests:

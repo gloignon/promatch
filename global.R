@@ -96,6 +96,11 @@ library(quickmatch)  # for quick
 library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
+library(glmmTMB)  # experimental, for mixed model analysis
+
+library(parallel)
+
+
 i18n <- Translator$new(translation_json_path = 'translation.json')
 # i18n$set_translation_language('fr')
 
@@ -121,6 +126,9 @@ pivot_data <- function(df, cols_to_pivot) {
   df <- df %>%
     mutate(across(all_of(cols_to_pivot), as.numeric))
   
+  # add unique .id column in case user wants mixed model analysis
+  df$.id <- paste0("id", 1:nrow(df))
+    
   # pivot
   df_long_data <- df %>%
     pivot_longer(cols = all_of(cols_to_pivot), names_to = "measurement", values_to = "score")
@@ -265,7 +273,7 @@ run_props_tests <- function(df_long_data, unique_levels) {
     ) %>% 
     ungroup()
   
-  df_props <- df_props %>% 
+  df_props <- df_props %>% group_by(measurement) %>%
     mutate(p = prop.test(
       x = c(!!sym(paste0("n_success_", unique_levels[1])),
             !!sym(paste0("n_success_", unique_levels[2]))),
@@ -434,4 +442,60 @@ add_to_summary <- function(label, value) {
     return(paste("\n", label, value, sep = ""))
   }
   return("")
+}
+
+# Mixed model analysis
+mm_analysis <- function(df_long) {
+  
+  # first me make sure the required columns exist
+  if (!".group" %in% colnames(df_long)) {
+    stop("The data frame must have a column named .group")
+  }
+  
+  if (!".id" %in% colnames(df_long)) {
+    stop("The data frame must have a column named .id")
+  }
+  
+  if (!"measurement" %in% colnames(df_long)) {
+    stop("The data frame must have a column named measurement")
+  }
+  
+  if (!"score" %in% colnames(df_long)) {
+    stop("The data frame must have a column named score")
+  }
+  
+  # make sure .groups has only 2 unique values
+  if (length(unique(df_long$.group)) != 2) {
+    stop("The .group column must have exactly 2 unique values")
+  }
+  
+  mm_null <- glmmTMB::glmmTMB(
+    formula = score ~ 1 + (1 | .id),
+    family = "binomial",
+    data = df_long,
+    control = glmmTMBControl(parallel = parallel::detectCores())
+  )
+  
+  mm_uniform <- update(mm_null, . ~ . + .group)
+  
+  if (length(unique(df_long$measurement)) == 2) {
+
+    mm_nonuniform <- update(mm_null, . ~ . + .group * measurement)
+    lr_test <- anova(mm_null, mm_uniform, mm_nonuniform)
+    
+  } else {
+    mm_nonuniform <- NULL
+    lr_test <- anova(mm_null, mm_uniform)
+    
+  }
+  
+  print(lr_test)
+  
+  result <- list(
+    mm_null = mm_null,
+    mm_uniform = mm_uniform,
+    mm_nonuniform = mm_nonuniform,
+    lr_test = lr_test
+  )
+  return(result)
 }

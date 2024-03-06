@@ -862,9 +862,15 @@ server <- function(input, output, session) {
       # selectInput("gamma_inc", i18n$t("Test by increments of..."), 
       #             choices = c(0.05, 0.1, 0.2), selected = .1),
       
+      # add a checkbox to activate mixed model analysis
+      
+      
       # offer three choices of alpha threshold: 0.05, 0.01, 0.001
       selectInput("alpha_thres", i18n$t("Alpha level"), 
                   choices = c(0.1, 0.05, 0.01, 0.001), selected = 0.05),
+      
+      # checkbox to run mixed model analysis
+      checkboxInput("check_mixed_model", i18n$t("Run mixed model analysis"), value = FALSE),
       
       actionButton(inputId = "run_test", label = i18n$t("Run tests")),
       br(),br(),
@@ -887,7 +893,8 @@ server <- function(input, output, session) {
       tableOutput("prop_test_output_unmatched"),
       h4(i18n$t("Proportions tests - matched data")),
       tableOutput("prop_test_output_matched"),
-      
+      h4(i18n$t("Mixed model analysis")),
+      verbatimTextOutput("mixed_model_output"),
       h4(i18n$t("Sensitivity analysis")),
       tableOutput("sens_analysis_short"),
       verbatimTextOutput("sens_test_output")
@@ -896,8 +903,9 @@ server <- function(input, output, session) {
   })
 
 
-
   # Multiple comparisons =================
+  
+  ## run the tests ----
   # this will trigger when we click the run button in the advanced tab
   observeEvent(input$run_test, {
     
@@ -996,6 +1004,42 @@ server <- function(input, output, session) {
     # } 
     # 
     
+    # If checked, run mixed model analysis
+    if (input$check_mixed_model) {
+      result_mixed_model <- try(mm_analysis(df_long_data_matched))
+      null_model_summary <- capture.output(summary(result_mixed_model$mm_null))
+      full_model_summary <- capture.output(summary(result_mixed_model$mm_uniform))
+      lr_test_summary <- capture.output(result_mixed_model$lr_test)
+      
+      # if there is a non_uniform model, we'll add it to the summary
+      if (!is.null(result_mixed_model$mm_nonuniform)) {
+        non_uniform_model_summary <- capture.output(summary(result_mixed_model$mm_nonuniform))
+        # Combine everything into a single character vector
+        summaries_mixed_models <- c("*** Null Model Summary ***", 
+                                    null_model_summary, "", 
+                                    "*** Uniform Model Summary ***", 
+                                    full_model_summary,
+                                    "\n*** Non-Uniform Model Summary ***",
+                                    non_uniform_model_summary,
+                                    "\n*** Likelihood Ratio Test ***",
+                                    lr_test_summary)
+      } else {
+        summaries_mixed_models <- c("*** Null Model Summary ***", 
+                                    null_model_summary, "", 
+                                    "*** Uniform Model Summary ***", 
+                                    full_model_summary,
+                                    "\n*** Likelihood Ratio Test ***",
+                                    lr_test_summary)
+      }
+      
+
+      
+      # # Print the combined summary
+      # cat(combined_summary, sep = "\n")
+    } 
+    
+    # Output results
+    
     output$prop_test_output_unmatched <- renderTable({
       result_props_tests_unmatched
     })
@@ -1004,6 +1048,9 @@ server <- function(input, output, session) {
       result_props_tests_matched
     })
     
+    output$mixed_model_output <- renderPrint({
+      cat(summaries_mixed_models, sep = "\n")
+    })
     
     result_sens_analysis <- 
       sensitivity_analysis(response = df_long_data_matched$score, 

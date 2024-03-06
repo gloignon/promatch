@@ -1,7 +1,7 @@
 Package: promatch
 Type: Shiny
 Title: GUI for the MatchIt package
-Version: 0.1.0
+Version: 0.2.0
 Authors@R:
     person("Loignon", "Guillaume", email = "loignon.guillaume@uqam.ca", role = c("aut", "cre"))
 Description: This is a simple Rshiny that provides a GUI to the MatchIt package.
@@ -24,7 +24,8 @@ Imports:
     tidyverse,
     ggpubr,
     cobalt,
-    rbounds
+    rbounds,
+    glmmTMB
 Remotes:
     # If you use GitHub packages, they can be listed here
 Suggests:

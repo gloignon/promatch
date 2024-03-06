@@ -47,7 +47,7 @@ ui <- fluidPage(title = "promatch",
   )),
       useShinyjs(),    # Use shinyjs to enable JavaScript functions
       shiny.i18n::usei18n(i18n),  # for translation
-      
+    
       tags$div(
         style = 'float: right;',
         selectInput(
@@ -60,6 +60,7 @@ ui <- fluidPage(title = "promatch",
           selected = "fr"
         )
       ),
+
       
       titlePanel("promatch"),
       ## Panel Match ----

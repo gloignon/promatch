@@ -1,4 +1,4 @@
-# Define UI ----
+# CSS ----
 ui <- fluidPage(title = "promatch",
                 tags$script(src = "https://kit.fontawesome.com/<you>.js"),
                 
@@ -39,9 +39,14 @@ ui <- fluidPage(title = "promatch",
       #test_plots img{
        min-width: 150px;
       }
-      #repeated_tests_output {overflow-y: scroll; max-height: 300px;}
+      
+      #sens_test_output {overflow-y: scroll; max-height: 300px;}
+      #mixed_model_output {overflow-y: scroll; max-height: 300px;}
+
       
       hr {border: .5px solid #ddd; !important;}
+      
+      .disabled-checkbox label { color: #aaa; } /* Light grey color */
       "
   )
   )),
@@ -61,7 +66,7 @@ ui <- fluidPage(title = "promatch",
         )
       ),
 
-      
+# Panels ----
       titlePanel("promatch"),
       ## Panel Match ----
       tabsetPanel(id = "main_tabs",

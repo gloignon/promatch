@@ -122,14 +122,20 @@ pivot_data <- function(df, cols_to_pivot) {
     # need(all(cols_to_pivot %in% colnames(df_matched_data)), "One or more selected columns do not exist in the data frame.")
   )
   
+  print("Advanced vars (cols_to_pivot) :")
+  print(cols_to_pivot)
+  
   # convert selected columns to numeric
   df <- df %>%
     mutate(across(all_of(cols_to_pivot), as.numeric))
   
   # add unique .id column in case user wants mixed model analysis
-  df$.id <- paste0("id", 1:nrow(df))
+  # with padded zeroes to ensure proper sorting
+  df <- df %>%
+    mutate(.id = row_number()) %>%
+    mutate(.id = str_pad(.id, width = nchar(nrow(df)), side = "left", pad = "0"))
     
-  # pivot
+  # pivot to long format
   df_long_data <- df %>%
     pivot_longer(cols = all_of(cols_to_pivot), names_to = "measurement", values_to = "score")
   
@@ -256,7 +262,7 @@ run_props_tests <- function(df_long_data, unique_levels) {
   #   stop("At least one cell has fewer than 5 observations")
   # }
   
-  print(head(df_long_data))
+  # print(head(df_long_data))
   df_props <- df_long_data %>%
     filter(!is.na(score)) %>% 
     group_by(.group, measurement) %>%
@@ -444,9 +450,10 @@ add_to_summary <- function(label, value) {
   return("")
 }
 
-# Mixed model analysis
-mm_analysis <- function(df_long) {
-  
+# Mixed model analysis ----
+mm_analysis_null_model <- function(df_long) {
+  print("Running null model...")
+  print(paste("n =", nrow(df_long)))
   # first me make sure the required columns exist
   if (!".group" %in% colnames(df_long)) {
     stop("The data frame must have a column named .group")
@@ -469,6 +476,8 @@ mm_analysis <- function(df_long) {
     stop("The .group column must have exactly 2 unique values")
   }
   
+  df_long <- df_long %>% filter(!is.na(score))
+  
   mm_null <- glmmTMB::glmmTMB(
     formula = score ~ 1 + (1 | .id),
     family = "binomial",
@@ -476,26 +485,35 @@ mm_analysis <- function(df_long) {
     control = glmmTMBControl(parallel = parallel::detectCores())
   )
   
+}
+
+mm_analysis_uniform_model <- function(mm_null, df_long) {
+
+  df_long <- df_long %>% filter(!is.na(score))
+  
   mm_uniform <- update(mm_null, . ~ . + .group)
   
-  if (length(unique(df_long$measurement)) == 2) {
+  return(mm_uniform)
+}
 
-    mm_nonuniform <- update(mm_null, . ~ . + .group * measurement)
+mm_analysis_nonuniform_model <- function(mm_uniform, df_long) {
+  
+  df_long <- df_long %>% filter(!is.na(score))
+  
+  mm_nonuniform <- update(mm_uniform, . ~ . +  measurement + .group:measurement)
+  
+  return(mm_uniform)
+}
+
+mm_analysis_comparison <- function(mm_null, mm_uniform, mm_nonuniform = NULL) {
+  
+  # if a mm_nonuniform was provided, we compare it to mm_null and mm_uniform
+  if (!is.null(mm_nonuniform)) {
     lr_test <- anova(mm_null, mm_uniform, mm_nonuniform)
-    
   } else {
-    mm_nonuniform <- NULL
     lr_test <- anova(mm_null, mm_uniform)
-    
   }
   
-  print(lr_test)
-  
-  result <- list(
-    mm_null = mm_null,
-    mm_uniform = mm_uniform,
-    mm_nonuniform = mm_nonuniform,
-    lr_test = lr_test
-  )
-  return(result)
+  return(lr_test)
 }
+

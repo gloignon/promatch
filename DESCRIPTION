@@ -25,6 +25,7 @@ Imports:
     ggpubr,
     cobalt,
     rbounds,
+    parallel,
     glmmTMB
 Remotes:
     # If you use GitHub packages, they can be listed here

@@ -36,11 +36,7 @@ server <- function(input, output, session) {
   availableVarsOnMatch <- reactiveVal()  #     Reactive value for storing available variables
   adv_results_viewed <- reactiveVal(FALSE)  # will toggle to TRUE if adv tab results have been shown
   matching_updated <- reactiveVal(FALSE)       # will toggle to TRUE if matching has been updated    
-  adv_analysis <- reactiveValues(
-    prop_tests_done = FALSE,
-    mixed_model_done = FALSE,
-    sens_analysis_done = FALSE
-  )
+
   # Observers ----
   
   # # Update the availableVarsOnMatch reactive value
@@ -906,60 +902,12 @@ server <- function(input, output, session) {
       br(),br(),
       downloadButton("downloadLongFormat", i18n$t("Download Long Format Matched Data"))
     )
-    
-
   })
   
-  ## advanced results UI ----
-  output$advanced_tab_results <- renderUI({
-    # if there is no matched data, display a message and exit
-    # if (is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
-    #   return(p(i18n$t("Please execute matching first."), align = "center"))
-    # }
-
-    ui_elements <- list()
-    
-    # Proportions test
-    if (adv_analysis$prop_tests_done) {
-      ui_elements <- append(ui_elements, list(
-        h4(i18n$t("Proportions tests - unmatched data")),
-        tableOutput("prop_test_output_unmatched"),
-        h4(i18n$t("Proportions tests - matched data")),
-        tableOutput("prop_test_output_matched")
-      ))
-    }
-    
-    # Mixed models (conditionnal)
-    if (adv_analysis$mixed_model_done) {
-      ui_elements <- append(ui_elements, list(
-        h4(i18n$t("Mixed model analysis")),
-        withSpinner(verbatimTextOutput("mixed_model_output"))
-      ))
-    }
-    
-    # Sensitivity analysis
-    if (adv_analysis$sens_analysis_done) {
-      ui_elements <- append(ui_elements, list(
-        h4(i18n$t("Sensitivity analysis")),
-        tableOutput("sens_analysis_short"),
-        verbatimTextOutput("sens_analysis_long")
-      ))
-    }
-
-    do.call(tagList, ui_elements)
-    
-  })
-
   
   ## on click run tests ----
   # this will trigger when we click the run button in the advanced tab
   observeEvent(input$run_test, {
-    
-    # reset the flags
-    adv_analysis$prop_tests_done <- FALSE
-    adv_analysis$mixed_model_done <- FALSE
-    adv_analysis$sens_analysis_done <- FALSE
-    
     
     req(input$depVar, input$advancedVars, df_matched_data(), df_clean_unmatched())
     df_matched <- df_matched_data()
@@ -1053,11 +1001,23 @@ server <- function(input, output, session) {
       result_props_tests_unmatched
     })
 
-    output$prop_test_output_matched <- renderTable({
-      result_props_tests_matched
+    
+    output$prop_test_output_unmatched <- renderUI({
+      list(
+        h3(i18n$t("Proportions tests")),
+        h4(i18n$t("Unmatched data")),
+        renderTable(result_props_tests_unmatched)
+      )
+      })
+    
+    output$prop_test_output_matched <- renderUI({
+      list(
+        h4(i18n$t("Matched data")),
+        renderTable(result_props_tests_matched)
+      )
     })
     
-    adv_analysis$prop_tests_done <- TRUE
+    # adv_analysis$prop_tests_done <- TRUE
     
     # # TODO: rename the columns if the user is using French
     # if (input$selected_language == "fr") {
@@ -1066,48 +1026,61 @@ server <- function(input, output, session) {
     # 
     
     # # If checked, run mixed model analysis and display results
-    if (input$check_mixed_model) {
+    if (input$check_mixed_model && length(unique_levels) > 1) {
       # fit the null model
       result_mixed_model_null <-
         try(mm_analysis_null_model(df_long = df_long_data_matched))
+      
+      output$mixed_model_analysis_null_ui <- renderUI({
+        list(
+          h3(i18n$t("Mixed model analyses")),
+          h4(i18n$t("Null model")),
+          renderPrint({
+            summary(result_mixed_model_null)
+          })
+        )
+      })
+      
+      # uniform model
       result_mixed_model_uniform <-
         try(mm_analysis_uniform_model(result_mixed_model_null, df_long_data_matched))
-      # make sure there are at least 2 measurements (e.g. items) then run the full model
-      if (length(unique(df_long_data_matched$measurement)) > 2) {
-        result_mixed_model_nonuniform <-
+      output$mixed_model_analysis_uniform_ui <- renderUI({
+        list(
+          h4(i18n$t("Group only (uniform) model")),
+          renderPrint({
+            summary(result_mixed_model_uniform)
+          })
+        )
+      })
+      
+      # non-uniform model
+      result_mixed_model_nonuniform <-
           try(mm_analysis_nonuniform_model(result_mixed_model_uniform, df_long_data_matched))
-      } else {
-        result_mixed_model_nonuniform <- NULL
-      }
+      output$mixed_model_analysis_nonuniform_ui <- renderUI({
+        list(
+          h4(i18n$t("Group x measurement (non-uniform) model")),
+          renderPrint({
+            summary(result_mixed_model_nonuniform)
+          })
+        )
+      })
+      
+      # mixed model comparisons and summary production
       result_lr_test <-
         try(mm_analysis_comparison(
           result_mixed_model_null,
           result_mixed_model_uniform,
           result_mixed_model_nonuniform
         ))
-
-      # capture the output of the mixed model analysis
-      null_model_summary <- capture.output(summary(result_mixed_model_null))
-      uniform_model_summary <- capture.output(summary(result_mixed_model_uniform))
-      non_uniform_model_summary <- capture.output(summary(result_mixed_model_nonuniform))
-      lr_test_summary <- capture.output(result_lr_test)
-
-      # Combine everything into a single character vector
-      summaries_mixed_models <- c("*** Null Model Summary ***",
-                                  null_model_summary, "",
-                                  "*** Uniform Model Summary ***",
-                                  uniform_model_summary,
-                                  "\n*** Non-Uniform Model Summary ***",
-                                  non_uniform_model_summary,
-                                  "\n*** Likelihood Ratio Test ***",
-                                  lr_test_summary)
-
-
-      output$mixed_model_output <- renderPrint({
-        cat(summaries_mixed_models, sep = "\n")
+      
+      output$mixed_model_analysis_comparisons_ui <- renderUI({
+        list(
+          h4(i18n$t("Likelyhood ratio tests")),
+          renderPrint({
+            result_lr_test
+          })
+        )
       })
-      adv_analysis$mixed_model_done <- TRUE
-
     }
 
 
@@ -1147,26 +1120,23 @@ server <- function(input, output, session) {
 
     }
 
-    # tests_summary(result_sens_analysis)  # print results
-
-    # make a table
+    # make a summary table of the sens analysis (highlights)
     annotations_sens_analysis <-
       make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
-    # print(annotations_sens_analysis)
-    # display the table
-    output$sens_analysis_short <- renderTable({
-      annotations_sens_analysis
-    })
 
-    # Store and define the summary
-    # tests_summary(summary(m.out))
-    output$sens_analysis_long <- renderPrint({
-      # req(tests_summary())  # Require that output_summary is not NULL
-      result_sens_analysis       # Output the stored summary
-    })
-    
-    adv_analysis$sens_analysis_done <- TRUE
-    
+    output$sensitivity_analysis_ui <- renderUI({
+      list(
+        h3(i18n$t("Sensitivity analysis")),
+        renderTable({
+          annotations_sens_analysis
+        }),
+        renderPrint({
+          result_sens_analysis      
+        })
+      )
+      })
+  
+
     # The results are now current, we can update the toggle reactive value
     adv_results_viewed(TRUE)
     matching_updated(FALSE)  

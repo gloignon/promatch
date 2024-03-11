@@ -96,7 +96,8 @@ library(quickmatch)  # for quick
 library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
-library(glmmTMB)  # experimental, for mixed model analysis
+library(glmmTMB)  # for mixed model analysis
+library(sjPlot)  # for mixed model tables
 
 library(parallel)
 
@@ -491,7 +492,7 @@ mm_analysis_uniform_model <- function(mm_null, df_long) {
 
   df_long <- df_long %>% filter(!is.na(score))
   
-  mm_uniform <- update(mm_null, . ~ . + .group)
+  mm_uniform <- update(mm_null, . ~ .group + . )
   
   return(mm_uniform)
 }

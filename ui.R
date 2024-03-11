@@ -40,8 +40,7 @@ ui <- fluidPage(title = "promatch",
        min-width: 150px;
       }
       
-      #sens_test_output {overflow-y: scroll; max-height: 300px;}
-      #mixed_model_output {overflow-y: scroll; max-height: 300px;}
+      #sens_analysis_long {overflow-y: scroll; max-height: 300px;}
 
       
       hr {border: .5px solid #ddd; !important;}
@@ -145,7 +144,13 @@ ui <- fluidPage(title = "promatch",
                                 uiOutput("advanced_tab_selection")
                    ),
                    mainPanel(width = 7,
-                        uiOutput("advanced_tab_results")
+                       uiOutput("prop_test_output_unmatched"),
+                       uiOutput("prop_test_output_matched"),
+                       uiOutput("mixed_model_analysis_null_ui"),
+                       uiOutput("mixed_model_analysis_uniform_ui"),
+                       uiOutput("mixed_model_analysis_nonuniform_ui"),
+                       uiOutput("mixed_model_analysis_comparisons_ui"),
+                       uiOutput("sensitivity_analysis_ui")
                    )
                  )
         ),  # fin Avancé

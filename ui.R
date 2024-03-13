@@ -144,13 +144,12 @@ ui <- fluidPage(title = "promatch",
                                 uiOutput("advanced_tab_selection")
                    ),
                    mainPanel(width = 7,
-                       uiOutput("prop_test_output_unmatched"),
-                       uiOutput("prop_test_output_matched"),
-                       uiOutput("mixed_model_analysis_null_ui"),
-                       uiOutput("mixed_model_analysis_uniform_ui"),
-                       uiOutput("mixed_model_analysis_nonuniform_ui"),
-                       uiOutput("mixed_model_analysis_comparisons_ui"),
-                       uiOutput("sensitivity_analysis_ui")
+                       uiOutput("prop_tests_results_ui"),
+                       uiOutput("mixed_model_results_null_ui"),
+                       uiOutput("mixed_model_results_uniform_ui"),
+                       uiOutput("mixed_model_results_nonuniform_ui"),
+                       uiOutput("mixed_model_results_lr_tests_ui"),
+                       uiOutput("sens_tests_results_ui"),
                    )
                  )
         ),  # fin Avancé

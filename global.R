@@ -97,7 +97,7 @@ library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
 library(glmmTMB)  # for mixed model analysis
-library(sjPlot)  # for mixed model tables
+# library(sjPlot)  # for mixed model tables
 
 library(parallel)
 
@@ -123,8 +123,8 @@ pivot_data <- function(df, cols_to_pivot) {
     # need(all(cols_to_pivot %in% colnames(df_matched_data)), "One or more selected columns do not exist in the data frame.")
   )
   
-  print("Advanced vars (cols_to_pivot) :")
-  print(cols_to_pivot)
+  # print("Advanced vars (cols_to_pivot) :")
+  # print(cols_to_pivot)
   
   # convert selected columns to numeric
   df <- df %>%
@@ -478,12 +478,13 @@ mm_analysis_null_model <- function(df_long) {
   }
   
   df_long <- df_long %>% filter(!is.na(score))
+  Sys.sleep(1)
   
   mm_null <- glmmTMB::glmmTMB(
     formula = score ~ 1 + (1 | .id),
     family = "binomial",
-    data = df_long,
-    control = glmmTMBControl(parallel = parallel::detectCores())
+    data = df_long
+    # control = glmmTMBControl(parallel = parallel::detectCores())
   )
   
 }
@@ -492,8 +493,12 @@ mm_analysis_uniform_model <- function(mm_null, df_long) {
 
   df_long <- df_long %>% filter(!is.na(score))
   
-  mm_uniform <- update(mm_null, . ~ .group + . )
+  Sys.sleep(1)
   
+  mm_uniform <- update(mm_null, . ~ .group + . 
+                       # control = glmmTMBControl(parallel = parallel::detectCores())
+  )
+
   return(mm_uniform)
 }
 
@@ -501,9 +506,12 @@ mm_analysis_nonuniform_model <- function(mm_uniform, df_long) {
   
   df_long <- df_long %>% filter(!is.na(score))
   
-  mm_nonuniform <- update(mm_uniform, . ~ . +  measurement + .group:measurement)
+  mm_nonuniform <- update(mm_uniform, . ~ . +  measurement + .group:measurement
+                          # control = glmmTMBControl(parallel = parallel::detectCores())
+  )
+  Sys.sleep(1)
   
-  return(mm_uniform)
+  return(mm_nonuniform)
 }
 
 mm_analysis_comparison <- function(mm_null, mm_uniform, mm_nonuniform = NULL) {
@@ -514,7 +522,7 @@ mm_analysis_comparison <- function(mm_null, mm_uniform, mm_nonuniform = NULL) {
   } else {
     lr_test <- anova(mm_null, mm_uniform)
   }
-  
+  Sys.sleep(1)
   return(lr_test)
 }
 

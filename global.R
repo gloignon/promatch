@@ -68,6 +68,8 @@
 #   Intégration des analyses modèles mixtes
 #   Bug fix, affichage des résultats des analyses avancées
 #   Progress bar pour analyses avancées
+#   Love plot en 2 plots (améliore un peu la hauteur d'affichage pour éviter que 
+#   les labels se chevauchent)
 
 
 library(tidyverse)

@@ -36,9 +36,6 @@ ui <- fluidPage(title = "promatch",
         gap: 10px; /* Adds space between plots */
       }
       
-      #test_plots img{
-       min-width: 150px;
-      }
       
       .pre-overflow pre{overflow-y: scroll; max-height: 300px;}
 
@@ -131,7 +128,7 @@ ui <- fluidPage(title = "promatch",
                          uiOutput("diagnosticPlots")
                      ),
                      # uiOutput("bal_plot"),
-                     uiOutput("love_plot")
+                     uiOutput("love_plots")
                    )
                  )
         ),  # fin dx

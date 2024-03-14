@@ -59,8 +59,7 @@ ui <- fluidPage(title = "promatch",
           selectize = FALSE,
           label = i18n$t('Changer la langue'),
           choices = i18n$get_languages(),
-          # selected = i18n$get_key_translation()
-          selected = "fr"
+          selected = i18n$get_key_translation()
         )
       ),
 

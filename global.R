@@ -64,6 +64,11 @@
 #   Meilleur affichage prop test
 #   Avertissement résultats qui ne sont plus à jour
 #   Bug fix prop tests
+# - 2024-03-14
+#   Intégration des analyses modèles mixtes
+#   Bug fix, affichage des résultats des analyses avancées
+#   Progress bar pour analyses avancées
+
 
 library(tidyverse)
 # library(ggrepel)
@@ -99,7 +104,7 @@ library(rbounds)  # for sensitivity analysis
 library(glmmTMB)  # for mixed model analysis
 library(sjPlot)  # for mixed model tables
 
-library(parallel)
+# library(parallel)
 
 
 i18n <- Translator$new(translation_json_path = 'translation.json')

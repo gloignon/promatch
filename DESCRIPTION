@@ -25,8 +25,8 @@ Imports:
     ggpubr,
     cobalt,
     rbounds,
-    parallel,
-    glmmTMB
+    glmmTMB,
+    sjPlot
 Remotes:
     # If you use GitHub packages, they can be listed here
 Suggests:

@@ -37,8 +37,7 @@ server <- function(input, output, session) {
   adv_results_viewed <- reactiveVal(FALSE)  # will toggle to TRUE if adv tab results have been shown
   matching_updated <- reactiveVal(FALSE)       # will toggle to TRUE if matching has been updated    
 
-  
-  
+
   # Observers ----
   
   # # Update the availableVarsOnMatch reactive value
@@ -65,7 +64,6 @@ server <- function(input, output, session) {
   #     )
   #   }
   # })
-  
   
   
   # Observe changes in availableVarsOnMatch
@@ -989,7 +987,7 @@ server <- function(input, output, session) {
         
         output$mixed_model_results_ui <- renderUI({
           list(
-            h4(i18n$t("Summary of the models")),
+            h3(i18n$t("Summary of the models")),
             # display the HTML is sj_table$knitr
             HTML(sj_table$knitr),
             h4(i18n$t("Likelihood ratio tests")),

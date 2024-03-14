@@ -97,7 +97,7 @@ library(cobalt)  # for matching assessment plots
 library(rbounds)  # for sensitivity analysis
 
 library(glmmTMB)  # for mixed model analysis
-# library(sjPlot)  # for mixed model tables
+library(sjPlot)  # for mixed model tables
 
 library(parallel)
 
@@ -478,7 +478,7 @@ mm_analysis_null_model <- function(df_long) {
   }
   
   df_long <- df_long %>% filter(!is.na(score))
-  Sys.sleep(1)
+  # Sys.sleep(1)
   
   mm_null <- glmmTMB::glmmTMB(
     formula = score ~ 1 + (1 | .id),
@@ -493,7 +493,7 @@ mm_analysis_uniform_model <- function(mm_null, df_long) {
 
   df_long <- df_long %>% filter(!is.na(score))
   
-  Sys.sleep(1)
+  # Sys.sleep(1)
   
   mm_uniform <- update(mm_null, . ~ .group + . 
                        # control = glmmTMBControl(parallel = parallel::detectCores())
@@ -509,7 +509,7 @@ mm_analysis_nonuniform_model <- function(mm_uniform, df_long) {
   mm_nonuniform <- update(mm_uniform, . ~ . +  measurement + .group:measurement
                           # control = glmmTMBControl(parallel = parallel::detectCores())
   )
-  Sys.sleep(1)
+  # Sys.sleep(1)
   
   return(mm_nonuniform)
 }
@@ -522,7 +522,7 @@ mm_analysis_comparison <- function(mm_null, mm_uniform, mm_nonuniform = NULL) {
   } else {
     lr_test <- anova(mm_null, mm_uniform)
   }
-  Sys.sleep(1)
+  # Sys.sleep(1)
   return(lr_test)
 }
 

@@ -40,9 +40,8 @@ ui <- fluidPage(title = "promatch",
        min-width: 150px;
       }
       
-      #sens_analysis_long {overflow-y: scroll; max-height: 300px;}
+      .pre-overflow pre{overflow-y: scroll; max-height: 300px;}
 
-      
       hr {border: .5px solid #ddd; !important;}
       
       .disabled-checkbox label { color: #aaa; } /* Light grey color */
@@ -145,10 +144,10 @@ ui <- fluidPage(title = "promatch",
                    ),
                    mainPanel(width = 7,
                        uiOutput("prop_tests_results_ui"),
-                       uiOutput("mixed_model_results_null_ui"),
-                       uiOutput("mixed_model_results_uniform_ui"),
-                       uiOutput("mixed_model_results_nonuniform_ui"),
-                       uiOutput("mixed_model_results_lr_tests_ui"),
+                       # uiOutput("mixed_model_results_null_ui"),
+                       # uiOutput("mixed_model_results_uniform_ui"),
+                       # uiOutput("mixed_model_results_nonuniform_ui"),
+                       uiOutput("mixed_model_results_ui"),
                        uiOutput("sens_tests_results_ui"),
                    )
                  )

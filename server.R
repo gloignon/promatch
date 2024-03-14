@@ -37,6 +37,8 @@ server <- function(input, output, session) {
   adv_results_viewed <- reactiveVal(FALSE)  # will toggle to TRUE if adv tab results have been shown
   matching_updated <- reactiveVal(FALSE)       # will toggle to TRUE if matching has been updated    
 
+  
+  
   # Observers ----
   
   # # Update the availableVarsOnMatch reactive value
@@ -902,9 +904,11 @@ server <- function(input, output, session) {
     )
   })
   
-  # long format data
+  ## Step 1:  pivot the data to long format ----
   reac_long_data <- eventReactive(input$run_test, {
     req(input$depVar, input$advancedVars, df_clean_unmatched(), df_matched_data())
+    
+    
     print("pivoting data...")
     
     df_unmatched <- df_clean_unmatched()
@@ -919,187 +923,324 @@ server <- function(input, output, session) {
     
     df_long_data_unmatched$.group <- df_long_data_unmatched[[input$depVar]]
     df_long_data_matched$.group <- df_long_data_matched[[input$depVar]]
-    
-    list(
-      unmatched = df_long_data_unmatched,
-      matched = df_long_data_matched
-    )
+    return(list(unmatched = df_long_data_unmatched,
+                matched = df_long_data_matched))
   }, ignoreNULL = TRUE)
   
-  # Mixed model analysis ----
+  ## Step 2: proportions tests ----
+  observeEvent(reac_long_data(), {
+    req(reac_long_data())
+    withProgress(message = i18n$t("Running proportions tests..."), value = 0, {
+      print("running prop tests...")
+      
+      list_long_data <- reac_long_data()
+      
+      df_long_data_unmatched <- list_long_data$unmatched
+      df_long_data_matched <-list_long_data$matched
+      unique_levels <- unique(df_long_data_matched$.group)
+      
+      result_props_tests_unmatched <- try(run_props_tests(df_long_data_unmatched, unique_levels))
+      result_props_tests_matched <- try(run_props_tests(df_long_data_matched, unique_levels))
+      
+      output$prop_tests_results_ui <- renderUI({
+        return(list(
+          h3(i18n$t("Proportions tests")),
+          h4(i18n$t("Unmatched data")),
+          renderTable(result_props_tests_unmatched),
+          h4(i18n$t("Matched data")),
+          renderTable(result_props_tests_matched)
+        ))
+      })
+  
+      
+      ## Step 3A: mixed model fit ----
+      if (input$check_mixed_model) {
+        print("fitting mixed models...")
+        setProgress(0.2, message = i18n$t("Running requested mixed model analysis - null model..."))
+        mm_null <-
+          try(mm_analysis_null_model(df_long = df_long_data_matched))
+        setProgress(0.3, message = i18n$t("Running requested mixed model analysis - uniform model..."))
+        mm_uniform <-
+          try(mm_analysis_uniform_model(df_long = df_long_data_matched, mm_null = mm_null))
+        setProgress(0.5, message = i18n$t("Running requested mixed model analysis - non-uniform model..."))
+        mm_nonuniform <-
+          try(mm_analysis_nonuniform_model(df_long = df_long_data_matched, mm_uniform = mm_uniform))
+  
+        setProgress(0.7, message = i18n$t("Running requested mixed model analysis - model comparisons..."))
+        result_lr <-
+          mm_analysis_comparison(
+            mm_null,
+            mm_uniform,
+            mm_nonuniform
+          ) %>% data.frame
+        # add a column with the model name
+        result_lr$model <- c("Null", "Uniform", "Non-uniform")
+        result_lr <- result_lr %>% select(model, everything())
+        colnames(result_lr) <- c("Model", "df", "AIC", "BIC", "logLik", "deviance", "Chisq", "Chisq_df", "p")
+        anova_table <- sjPlot::tab_df(as.data.frame(result_lr))
+        # use sjPlot tab_model to create a summary, with the names Null, Uniform and Non-uniform
+        sj_table <- tab_model(mm_null, 
+                              mm_uniform, 
+                              mm_nonuniform,
+                              dv.labels = c("Null", "Uniform (group)", "Non-uniform (group x measurement)"),
+                              show.intercept = FALSE,
+                              show.p = TRUE,
+                              show.ci = FALSE)
+        
+        output$mixed_model_results_ui <- renderUI({
+          list(
+            h4(i18n$t("Summary of the models")),
+            # display the HTML is sj_table$knitr
+            HTML(sj_table$knitr),
+            h4(i18n$t("Likelihood ratio tests")),
+            HTML(anova_table$knitr)
+            # renderPrint({
+            #   result_lr
+            # })
+          )
+        })
+      }
+      
+      ## Step 3B: sensitivity tests ----
+      # run predictions if mixed model analysis requested and available
+      setProgress(0.8, message = i18n$t("Running sensitivity analyses..."))
+      
+      if (input$check_mixed_model && !is.null(mm_nonuniform)) {
+        print("running sensitivity analysis (mixed model)")
+        df_long_data_matched$score_2 <- predict(mm_nonuniform,
+                                                newdata = df_long_data_matched,
+                                                type = "response")
+        df_long_data_matched$score_2 <- ifelse(df_long_data_matched$score > 0.5, 1, 0)
+      } else {
+        print("running sensitivity analysis (raw)")
+      }
+      
+      result_sens_analysis <-
+        sensitivity_analysis(response = df_long_data_matched$score,
+                             group = df_long_data_matched$.group,
+                             items = df_long_data_matched$measurement,
+                             subclass = df_long_data_matched$subclass,
+                             # gamma_inc =  input$gamma_inc,
+                             max_gamma = input$max_gamma)
+      
+      annotations_sens_analysis <-
+        make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
+      
+      # 
+      # list(
+      #   long_results = result_sens_analysis,
+      #   annotations = annotations_sens_analysis
+      # )
+      
+      output$sens_tests_results_ui <- renderUI({
+        list(
+          h3(i18n$t("Sensitivity analysis")),
+          renderTable({
+            annotations_sens_analysis
+          }),
+          div(class = "pre-overflow", 
+              renderPrint({
+                result_sens_analysis
+              }))
+          )
+      })
+    
+    })  # fin withProgress
+    adv_results_viewed(TRUE)
+    matching_updated(FALSE)  
+
+  })
+  
+  # # sensitivity tests computation
+  # observeEvent(prop_tests_done(), {
+  #   req(reac_long_data(), prop_tests_done() == TRUE)
+  #   
+  #   df_long_data_matched <- reac_long_data()$matched
+  # 
+  #   # run predictions if mixed model is available
+  #   if (input$check_mixed_model && !is.null(mixed_model_results_nonuniform())) {
+  #     req(mixed_model_results_nonuniform())
+  #     print("running sensitivity analysis (mixed model)")
+  #     df_long_data_matched$score_2 <- predict(mixed_model_results_nonuniform(),
+  #                                             newdata = df_long_data_matched,
+  #                                             type = "response")
+  #     df_long_data_matched$score_2 <- ifelse(df_long_data_matched$score > 0.5, 1, 0)
+  #   } else {
+  #     print("running sensitivity analysis (raw)")
+  #   }
+  #   
+  #   # unique_levels <- unique(df_long_data_matched$.group)
+  #   
+  #   result_sens_analysis <-
+  #     sensitivity_analysis(response = df_long_data_matched$score,
+  #                          group = df_long_data_matched$.group,
+  #                          items = df_long_data_matched$measurement,
+  #                          subclass = df_long_data_matched$subclass,
+  #                          # gamma_inc =  input$gamma_inc,
+  #                          max_gamma = input$max_gamma)
+  #   
+  #   annotations_sens_analysis <-
+  #     make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
+  #   
+  #   # 
+  #   # list(
+  #   #   long_results = result_sens_analysis,
+  #   #   annotations = annotations_sens_analysis
+  #   # )
+  #   
+  #   output$sens_tests_results_ui <- renderUI({
+  #     list(h3(i18n$t("Sensitivity analysis")),
+  #          renderTable({
+  #            annotations_sens_analysis
+  #          }),
+  #          renderPrint({
+  #            result_sens_analysis
+  #          }))
+  #   })
+  #   
+  #   sens_tests_done(TRUE)
+  # })
+  
+  # # sensitivity tests display
+  # output$sens_tests_results_ui  <- renderUI({
+  #   req(sens_test_results(), prop_tests_done() == TRUE)
+  #   results <- sens_test_results()
+  #   list(h3(i18n$t("Sensitivity analysis")),
+  #        renderTable({
+  #          results$annotations
+  #        }),
+  #        renderPrint({
+  #          results$long_results
+  #        }))
+  # })
+  
+  # this will react to adv_analysis_flags$prop_tests_done becoming TRUE and will 
+  # update the results UI
+  # observeEvent(adv_analysis_flags()$prop_tests_done == TRUE, {
+  #   req(prop_test_results())
+  #   print("updating prop tests...")
+  #   results <- prop_test_results()
+  #   output$prop_tests_results_ui <- renderUI({
+  #     list(
+  #       h3(i18n$t("Proportions tests")),
+  #       h4(i18n$t("Unmatched data")),
+  #       renderTable(results$unmatched),
+  #       h4(i18n$t("Matched data")),
+  #       renderTable(results$matched)
+  #     )
+  #   })
+  #   adv_analysis_flags()$prop_tests_shown <- TRUE
+  # })
+  
   # this will trigger when the run_test button is clicked AND the mixed model checkbox is checked
-  mixed_model_results_NULL <- eventReactive(input$run_test, {
-    if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-      return()
-    }
-    print("triggered mixed model compute (null model)")
-    req(reac_long_data())
-    df_long_data_matched <- reac_long_data()$matched
-    result_null <-
-      try(mm_analysis_null_model(df_long = df_long_data_matched))
+  # mixed_model_results_NULL <- eventReactive(input$run_test, {
+  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
+  #     return()
+  #   }
+  #   req(reac_long_data())
+  #   print("triggered mixed model compute (null model)")
+  #   df_long_data_matched <- reac_long_data()$matched
+  #   result_null <-
+  #     try(mm_analysis_null_model(df_long = df_long_data_matched))
+  # 
+  #   return(result_null)
+  # 
+  # }, ignoreNULL = TRUE)
+  
+  # output$mixed_model_results_null_ui <- renderUI({
+  #   req(mixed_model_results_NULL())
+  #   list(
+  #     h3(i18n$t("Mixed model analyses")),
+  #     h4(i18n$t("Null model")),
+  #     renderPrint({
+  #       summary(mixed_model_results_NULL())
+  #     })
+  #   )
+  # })
 
-    return(result_null)
-
-  }, ignoreNULL = TRUE)
+  # mixed_model_results_uniform <- eventReactive(input$run_test, {
+  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
+  #     return()
+  #   }
+  #   req(reac_long_data(), mixed_model_results_NULL())
+  #   print("triggered mixed model compute (uniform model)")
+  #   df_long_data_matched <- reac_long_data()$matched
+  #   result_uniform <-
+  #     try(mm_analysis_uniform_model(df_long = df_long_data_matched, mm_null = mixed_model_results_NULL()))
+  #   
+  #   return(result_uniform)
+  #   
+  # }, ignoreNULL = TRUE)
   
-  output$mixed_model_results_null_ui <- renderUI({
-    req(mixed_model_results_NULL())
-    list(
-      h3(i18n$t("Mixed model analyses")),
-      h4(i18n$t("Null model")),
-      renderPrint({
-        summary(mixed_model_results_NULL())
-      })
-    )
-  })
-
-  mixed_model_results_uniform <- eventReactive(input$run_test, {
-    if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-      return()
-    }
-    print("triggered mixed model compute (uniform model)")
-    req(reac_long_data(), mixed_model_results_NULL())
-    df_long_data_matched <- reac_long_data()$matched
-    result_uniform <-
-      try(mm_analysis_uniform_model(df_long = df_long_data_matched, mm_null = mixed_model_results_NULL()))
-    
-    return(result_uniform)
-    
-  }, ignoreNULL = TRUE)
+  # output$mixed_model_results_uniform_ui <- renderUI({
+  #   req(mixed_model_results_uniform())
+  #   list(
+  #     h4(i18n$t("Uniform model")),
+  #     renderPrint({
+  #       summary(mixed_model_results_uniform())
+  #     })
+  #   )
+  # })
   
-  output$mixed_model_results_uniform_ui <- renderUI({
-    req(mixed_model_results_uniform())
-    list(
-      h4(i18n$t("Uniform model")),
-      renderPrint({
-        summary(mixed_model_results_uniform())
-      })
-    )
-  })
+  # mixed_model_results_nonuniform <- eventReactive(input$run_test, {
+  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
+  #     return()
+  #   }
+  #   req(reac_long_data(), mixed_model_results_uniform())
+  #   print("triggered mixed model compute (nonuniform model)")
+  #   df_long_data_matched <- reac_long_data()$matched
+  #   result_nonuniform <-
+  #     try(mm_analysis_nonuniform_model(df_long = df_long_data_matched, mm_uniform = mixed_model_results_uniform()))
+  #   
+  #   return(result_nonuniform)
+  #   
+  # }, ignoreNULL = TRUE)
+  # 
+  # output$mixed_model_results_nonuniform_ui <- renderUI({
+  #   req(mixed_model_results_nonuniform())
+  #   list(
+  #     h4(i18n$t("Non-uniform model")),
+  #     renderPrint({
+  #       summary(mixed_model_results_nonuniform())
+  #     })
+  #   )
+  # })
   
-  mixed_model_results_nonuniform <- eventReactive(input$run_test, {
-    if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-      return()
-    }
-    print("triggered mixed model compute (nonuniform model)")
-    req(reac_long_data(), mixed_model_results_uniform())
-    df_long_data_matched <- reac_long_data()$matched
-    result_nonuniform <-
-      try(mm_analysis_nonuniform_model(df_long = df_long_data_matched, mm_uniform = mixed_model_results_uniform()))
-    
-    return(result_nonuniform)
-    
-  }, ignoreNULL = TRUE)
+  # output$mixed_model_results_lr_tests_ui <- renderUI({
+  #   req(mixed_model_results_NULL(), mixed_model_results_uniform(), mixed_model_results_nonuniform())
+  #   result_lr <-
+  #     mm_analysis_comparison(
+  #       mixed_model_results_NULL(),
+  #       mixed_model_results_uniform(),
+  #       mixed_model_results_nonuniform()
+  #     ) %>% data.frame
+  #   # add a column with the model name
+  #   result_lr$model <- c("Null", "Uniform", "Non-uniform")
+  #   result_lr <- result_lr %>% select(model, everything())
+  #   colnames(result_lr) <- c("Model", "df", "AIC", "BIC", "logLik", "deviance", "Chisq", "Chisq_df", "p")
+  #   anova_table <- sjPlot::tab_df(as.data.frame(result_lr))
+  #   # use sjPlot tab_model to create a summary, with the names Null, Uniform and Non-uniform
+  #   sj_table <- tab_model(mixed_model_results_NULL(), 
+  #                         mixed_model_results_uniform(), 
+  #                         mixed_model_results_nonuniform(),
+  #                         dv.labels = c("Null", "Uniform (group)", "Non-uniform (group x measurement)"),
+  #                         show.intercept = FALSE,
+  #                         show.p = TRUE,
+  #                         show.ci = FALSE)
+  #   list(
+  #     h4(i18n$t("Summary of the models")),
+  #     # display the HTML is sj_table$knitr
+  #     HTML(sj_table$knitr),
+  #     h4(i18n$t("Likelihood ratio tests")),
+  #     HTML(anova_table$knitr)
+  #     # renderPrint({
+  #     #   result_lr
+  #     # })
+  #   )
+  # })
   
-  output$mixed_model_results_nonuniform_ui <- renderUI({
-    req(mixed_model_results_nonuniform())
-    list(
-      h4(i18n$t("Non-uniform model")),
-      renderPrint({
-        summary(mixed_model_results_nonuniform())
-      })
-    )
-  })
   
-  output$mixed_model_results_lr_tests_ui <- renderUI({
-    req(mixed_model_results_nonuniform())
-    result_lr <-
-      mm_analysis_comparison(
-        mixed_model_results_NULL(),
-        mixed_model_results_uniform(),
-        mixed_model_results_nonuniform()
-      )
-    list(
-      h4(i18n$t("Likelihood ratio tests")),
-      renderPrint({
-        result_lr
-      })
-    )
-  })
-  
-  # proportions tests computation
-  prop_test_results <- eventReactive(input$run_test, {
-    req(reac_long_data())
-    print("running prop tests...")
-    
-    list_long_data <- reac_long_data()
-    
-    df_long_data_unmatched <- list_long_data$unmatched
-    df_long_data_matched <-list_long_data$matched
-    unique_levels <- unique(df_long_data_matched$.group)
-    
-    result_props_tests_unmatched <- try(run_props_tests(df_long_data_unmatched, unique_levels))
-    result_props_tests_matched <- try(run_props_tests(df_long_data_matched, unique_levels))
-    
-    return(list(
-      unmatched = result_props_tests_unmatched, 
-      matched = result_props_tests_matched)
-      )
-  })
-
-  # proportions tests display
-  output$prop_tests_results_ui <- renderUI({
-    req(prop_test_results())
-    results <- prop_test_results()
-    list(
-      h3(i18n$t("Proportions tests")),
-      h4(i18n$t("Unmatched data")),
-      renderTable(results$unmatched),
-      h4(i18n$t("Matched data")),
-      renderTable(results$matched)
-    )
-  })
-  
-  # sensitivity tests computation (no mm)
-  sens_test_results <- eventReactive(input$run_test, {
-    req(reac_long_data())
-    list_long_data <- reac_long_data()
-    df_long_data_matched <- list_long_data$matched
-    
-    # run predictions if mixed model is available
-    if (input$check_mixed_model && !is.null(mixed_model_results_uniform())) {
-      print("running sensitivity analysis (mixed model)")
-      df_long_data_matched$score_2 <- predict(mixed_model_results_uniform(),
-                                   newdata = df_long_data_matched,
-                                   type = "response")
-      df_long_data_matched$score_2 <- ifelse(df_long_data_matched$score > 0.5, 1, 0)
-    } else {
-      print("running sensitivity analysis (raw)")
-    }
-    
-    # unique_levels <- unique(df_long_data_matched$.group)
-    
-    result_sens_analysis <-
-      sensitivity_analysis(response = df_long_data_matched$score,
-                           group = df_long_data_matched$.group,
-                           items = df_long_data_matched$measurement,
-                           subclass = df_long_data_matched$subclass,
-                           # gamma_inc =  input$gamma_inc,
-                           max_gamma = input$max_gamma)
-    
-    annotations_sens_analysis <-
-      make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
-
-    list(
-      long_results = result_sens_analysis,
-      annotations = annotations_sens_analysis
-    )
-  })
-  
-  # sensitivity tests display
-  output$sens_tests_results_ui  <- renderUI({
-    req(sens_test_results())
-    results <- sens_test_results()
-    list(h3(i18n$t("Sensitivity analysis")),
-         renderTable({
-           results$annotations
-         }),
-         renderPrint({
-           results$long_results
-         }))
-  })
-  
-  # ## on click run tests ----
+  # ## on click run tests 
   # # this will trigger when we click the run button in the advanced tab
   # observeEvent(input$run_test, {
   #   req(input$depVar, input$advancedVars, df_long_data_unmatched(), df_long_data_matched())

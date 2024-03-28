@@ -175,31 +175,31 @@ server <- function(input, output, session) {
   
   # Update UI based on uploaded file
   output$varSelect <- renderUI({
+    req(df_unmatched_data())
     df <- df_unmatched_data()
-    if (exists("df") && is.data.frame(df)) {
-      list(
-        selectInput(
-          "depVar",
-          label = i18n$t("Select Treatment (Group) Variable"),
-          choices = filterDichotomousVariables(df)
-        ),
-        selectInput(
-          "covariates",
-          label = i18n$t("Select Covariates"),
-          choices = names(df),
-          multiple = TRUE,
-          selectize = TRUE
-        ),
-        selectInput(
-          "exact_match",
-          label = i18n$t("Select Exact matching variables (optional)"),
-          choices = names(df),
-          multiple = TRUE,
-          selectize = TRUE
-        ),
-        actionButton(inputId = "var_config", icon = icon("gear"), label = i18n$t("Variable properties"))
-      )
-    }
+    req(is.data.frame(df))
+    list(
+      selectInput(
+        "depVar",
+        label = i18n$t("Select Treatment (Group) Variable"),
+        choices = filterDichotomousVariables(df)
+      ),
+      selectInput(
+        "covariates",
+        label = i18n$t("Select Covariates"),
+        choices = names(df),
+        multiple = TRUE,
+        selectize = TRUE
+      ),
+      selectInput(
+        "exact_match",
+        label = i18n$t("Select Exact matching variables (optional)"),
+        choices = names(df),
+        multiple = TRUE,
+        selectize = TRUE
+      ),
+      actionButton(inputId = "btn_var_config", icon = icon("gear"), label = i18n$t("Variable properties"))
+    )
   })
   
   ## Caliper checkbox and slider toggles ----
@@ -355,19 +355,30 @@ server <- function(input, output, session) {
 
  
         # Perform the matching using the matchit function
-        m.out <- matchit(
-          formula, 
-          method = method, 
-          distance = distance, 
-          data = df_clean, 
-          exact = exact_match_vars,
-          caliper = caliper,
-          link = "linear.logit", # will apply the caliper to the logit
-          std.caliper = TRUE,
-          mahvars = mah_vars,
-          verbose = TRUE
+        m.out <- try(
+        matchit(
+            formula, 
+            method = method, 
+            distance = distance, 
+            data = df_clean, 
+            exact = exact_match_vars,
+            caliper = caliper,
+            link = "linear.logit", # will apply the caliper to the logit
+            std.caliper = TRUE,
+            mahvars = mah_vars,
+            verbose = FALSE
+          )
         )
         
+        if (inherits(m.out, "try-error")) {
+          showModal(modalDialog(
+            title = i18n$t("Error"),
+            i18n$t("Error while matching.")
+          ))
+          return()
+        }
+        
+        print(m.out)
         match_object(m.out)  # copy the matched object to the reactive value; used for model assessment
         
         # update progress bar
@@ -422,7 +433,7 @@ server <- function(input, output, session) {
           add_to_summary("distance: ", distance),
           add_to_summary("method: ", method),
           add_to_summary("caliper: ", caliper),
-          add_to_summary("mahalanobis variables: ", paste(input$covariates, collapse = " + ")),
+          add_to_summary("mahalanobis variables: ", paste(mah_vars, collapse = " + ")),
           sep = ""
         )
       
@@ -490,48 +501,7 @@ server <- function(input, output, session) {
       }
     }
   )
-  # output$download <- downloadHandler(
-  #   filename = function() {
-  #     orig_dir <- getwd()
-  #     main_output_dir <- file.path(session_temp_dir, "main_output")
-  #     if (dir.exists(main_output_dir)) {
-  #       unlink(main_output_dir, recursive = TRUE)
-  #     }
-  #     dir.create(main_output_dir)
-  #     orig_dir <- getwd()
-  #     setwd(main_output_dir)
-  #     file_name <- paste0("matched-long_format-", Sys.Date(), ".csv")
-  #     write.csv(x = df_matched_data(),
-  #               file = file_name, 
-  #               row.names = FALSE)
-  #     file_size <- file.info(file_name)$size / (1024^2) # Size in Megabytes
-  #     setwd(orig_dir)  # let's go back to the original directory
-  #     
-  #     # Determine the filename based on size
-  #     if (file_size > 1) {
-  #       zip(zipfile = file, files = paste0("matched-long_format-", Sys.Date(), ".csv"))
-  #       # return(paste0("matched-", Sys.Date(), ".zip"))
-  #       return(paste0("matched-", input$method, "-", input$distance, "-", Sys.Date(), ".zip", sep = ""))
-  #     } else {
-  #       return(paste0("matched-", input$method, "-", input$distance, "-", Sys.Date(), ".csv", sep = ""))
-  #     }
-  #   },
-  #   content = function(file) {
-  #     # Confirm that df_matched_data is not empty
-  #     if (!data_available() || is.null(df_matched_data()) || nrow(df_matched_data()) == 0) {
-  #       showModal(modalDialog(
-  #         title = i18n$t("Error"),
-  #         i18n$t("No matched data available for download."),
-  #         easyClose = TRUE
-  #       ))
-  #     } else {
-  #       # Write the data to CSV
-  #       files <- list.files(file.path(session_temp_dir, "main_output"), pattern = "\\.csv$|\\.zip$")
-  #       file_path <- file.path(session_temp_dir, "main_output", files[1])
-  #       file.copy(file_path, file)
-  #     }
-  #   }
-  # )
+ 
 
   # Long format download handler ----
   output$downloadLongFormat <- downloadHandler(
@@ -591,10 +561,15 @@ server <- function(input, output, session) {
   output$love_plots <- renderUI({
     # Only create the plotOutput if match_obj is not NULL
     req(match_object())
+    
+    # estimate required height based on number of covariates
+    # and of levels in the covariates
+    est_heights <- estimate_lp_height(match_object(), baseline = 200, mult = 30)
+    
     tagList(
       h3(i18n$t("Balance analysis (Love plots)")),
-      withSpinner(plotOutput("lovePlot_p1")),
-      withSpinner(plotOutput("lovePlot_p2"))
+      withSpinner(plotOutput("lovePlot_p1", height = est_heights$top)),
+      withSpinner(plotOutput("lovePlot_p2", height = est_heights$bottom))
     )
   })
   
@@ -756,7 +731,7 @@ server <- function(input, output, session) {
   
   # Variable type config ----
   # Observe event for var_config button
-  observeEvent(input$var_config, {
+  observeEvent(input$btn_var_config, {
     # Create a modal dialog when the button is clicked
     showModal(modalDialog(
       title = i18n$t("Variable Configuration"),
@@ -768,7 +743,7 @@ server <- function(input, output, session) {
       # Modal footer with action buttons
       footer = tagList(
         modalButton(i18n$t("Cancel")),
-        actionButton("save_var_config", i18n$t("Save Configuration"))
+        actionButton("btn_save_var_config", i18n$t("Save Configuration"))
       )
     ))
   })
@@ -813,7 +788,7 @@ server <- function(input, output, session) {
   #   removeModal()
   # })
   # 
-  observeEvent(input$save_var_config, {
+  observeEvent(input$btn_save_var_config, {
     
     # Save the selections
     current_covariate_selections <- input$covariates
@@ -867,6 +842,7 @@ server <- function(input, output, session) {
         label = i18n$t("Select measurement variable(s)"),
         choices = availableVars 
       ),
+      
       br(),
       # h4(i18n$t("Statistical tests")),
       # selectInput(
@@ -939,7 +915,7 @@ server <- function(input, output, session) {
       list_long_data <- reac_long_data()
       
       df_long_data_unmatched <- list_long_data$unmatched
-      df_long_data_matched <-list_long_data$matched
+      df_long_data_matched <- list_long_data$matched
       unique_levels <- unique(df_long_data_matched$.group)
       
       result_props_tests_unmatched <- try(run_props_tests(df_long_data_unmatched, unique_levels))
@@ -961,21 +937,49 @@ server <- function(input, output, session) {
         setProgress(0.2, message = i18n$t("Running requested mixed model analysis - null model..."))
         mm_null <-
           try(mm_analysis_null_model(df_long = df_long_data_matched))
+        
+        # if there was an error fitting the null model, break with error message, otherwise continue
+        if (inherits(mm_null, "try-error")) {
+          showModal(modalDialog(
+            title = i18n$t("Error"),
+            i18n$t("There was an error fitting the null model. Please check your data and try again.")
+          ))
+          return()
+        }
+        
         setProgress(0.3, message = i18n$t("Running requested mixed model analysis - uniform model..."))
         mm_uniform <-
           try(mm_analysis_uniform_model(df_long = df_long_data_matched, mm_null = mm_null))
         setProgress(0.5, message = i18n$t("Running requested mixed model analysis - non-uniform model..."))
+        
+        # if there was an error fitting the uniform model, break with error message, otherwise continue
+        if (inherits(mm_uniform, "try-error")) {
+          showModal(modalDialog(
+            title = i18n$t("Error"),
+            i18n$t("There was an error fitting the uniform model. Please check your data and try again.")
+          ))
+          return()
+        }
         mm_nonuniform <-
           try(mm_analysis_nonuniform_model(df_long = df_long_data_matched, mm_uniform = mm_uniform))
+        # if there was an error fitting the non-uniform model, break with error message, otherwise continue
+        if (inherits(mm_nonuniform, "try-error")) {
+          showModal(modalDialog(
+            title = i18n$t("Error"),
+            i18n$t("There was an error fitting the non-uniform model. Please check your data and try again.")
+          ))
+          return()
+        }
   
+        
         setProgress(0.7, message = i18n$t("Running requested mixed model analysis - model comparisons..."))
+        # TODO: move everything I can to a function in the global.R file
         result_lr <-
           mm_analysis_comparison(
             mm_null,
             mm_uniform,
             mm_nonuniform
           ) %>% data.frame
-        # add a column with the model name
         result_lr$model <- c("Null", "Uniform", "Non-uniform")
         result_lr <- result_lr %>% select(model, everything())
         colnames(result_lr) <- c("Model", "df", "AIC", "BIC", "logLik", "deviance", "Chisq", "Chisq_df", "p")
@@ -984,7 +988,7 @@ server <- function(input, output, session) {
         sj_table <- tab_model(mm_null, 
                               mm_uniform, 
                               mm_nonuniform,
-                              dv.labels = c("Null", "Uniform (group)", "Non-uniform (group x measurement)"),
+                              dv.labels = c("Null", "Uniform (group)", "Non-uniform<br>(group x measurement)"),
                               show.intercept = FALSE,
                               show.p = TRUE,
                               show.ci = FALSE)
@@ -1008,25 +1012,33 @@ server <- function(input, output, session) {
       setProgress(0.8, message = i18n$t("Running sensitivity analyses..."))
       
       if (input$check_mixed_model && !is.null(mm_nonuniform)) {
+        # produire les prédictions du modèle
         print("running sensitivity analysis (mixed model)")
-        df_long_data_matched$score_2 <- predict(mm_nonuniform,
-                                                newdata = df_long_data_matched,
-                                                type = "response")
-        df_long_data_matched$score_2 <- ifelse(df_long_data_matched$score > 0.5, 1, 0)
+        df_matched_pred_long <- df_long_data_matched %>% 
+          filter(!is.na(score)) %>% 
+          mutate(pred = predict(mm_nonuniform, type = "response")) %>% 
+          mutate(score = ifelse(pred >= .5, 1, 0))  # clip predictions to [0, 1]
+        result_sens_analysis <-
+          sensitivity_analysis(response = df_matched_pred_long$score,
+                               group = df_matched_pred_long$.group,
+                               items = df_matched_pred_long$measurement,
+                               subclass = df_matched_pred_long$subclass,
+                               # gamma_inc =  input$gamma_inc,
+                               max_gamma = input$max_gamma)
       } else {
         print("running sensitivity analysis (raw)")
+        result_sens_analysis <-
+          sensitivity_analysis(response = df_long_data_matched$score,
+                               group = df_long_data_matched$.group,
+                               items = df_long_data_matched$measurement,
+                               subclass = df_long_data_matched$subclass,
+                               # gamma_inc =  input$gamma_inc,
+                               max_gamma = input$max_gamma)
       }
-      
-      result_sens_analysis <-
-        sensitivity_analysis(response = df_long_data_matched$score,
-                             group = df_long_data_matched$.group,
-                             items = df_long_data_matched$measurement,
-                             subclass = df_long_data_matched$subclass,
-                             # gamma_inc =  input$gamma_inc,
-                             max_gamma = input$max_gamma)
-      
+    
       annotations_sens_analysis <-
-        make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
+        make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% 
+        data.frame()
       
       # 
       # list(
@@ -1052,161 +1064,7 @@ server <- function(input, output, session) {
     matching_updated(FALSE)  
 
   })
-  
-  # # sensitivity tests computation
-  # observeEvent(prop_tests_done(), {
-  #   req(reac_long_data(), prop_tests_done() == TRUE)
-  #   
-  #   df_long_data_matched <- reac_long_data()$matched
-  # 
-  #   # run predictions if mixed model is available
-  #   if (input$check_mixed_model && !is.null(mixed_model_results_nonuniform())) {
-  #     req(mixed_model_results_nonuniform())
-  #     print("running sensitivity analysis (mixed model)")
-  #     df_long_data_matched$score_2 <- predict(mixed_model_results_nonuniform(),
-  #                                             newdata = df_long_data_matched,
-  #                                             type = "response")
-  #     df_long_data_matched$score_2 <- ifelse(df_long_data_matched$score > 0.5, 1, 0)
-  #   } else {
-  #     print("running sensitivity analysis (raw)")
-  #   }
-  #   
-  #   # unique_levels <- unique(df_long_data_matched$.group)
-  #   
-  #   result_sens_analysis <-
-  #     sensitivity_analysis(response = df_long_data_matched$score,
-  #                          group = df_long_data_matched$.group,
-  #                          items = df_long_data_matched$measurement,
-  #                          subclass = df_long_data_matched$subclass,
-  #                          # gamma_inc =  input$gamma_inc,
-  #                          max_gamma = input$max_gamma)
-  #   
-  #   annotations_sens_analysis <-
-  #     make_sens_annotations(result_sens_analysis, alpha = input$alpha_thres) %>% data.frame()
-  #   
-  #   # 
-  #   # list(
-  #   #   long_results = result_sens_analysis,
-  #   #   annotations = annotations_sens_analysis
-  #   # )
-  #   
-  #   output$sens_tests_results_ui <- renderUI({
-  #     list(h3(i18n$t("Sensitivity analysis")),
-  #          renderTable({
-  #            annotations_sens_analysis
-  #          }),
-  #          renderPrint({
-  #            result_sens_analysis
-  #          }))
-  #   })
-  #   
-  #   sens_tests_done(TRUE)
-  # })
-  
-  # # sensitivity tests display
-  # output$sens_tests_results_ui  <- renderUI({
-  #   req(sens_test_results(), prop_tests_done() == TRUE)
-  #   results <- sens_test_results()
-  #   list(h3(i18n$t("Sensitivity analysis")),
-  #        renderTable({
-  #          results$annotations
-  #        }),
-  #        renderPrint({
-  #          results$long_results
-  #        }))
-  # })
-  
-  # this will react to adv_analysis_flags$prop_tests_done becoming TRUE and will 
-  # update the results UI
-  # observeEvent(adv_analysis_flags()$prop_tests_done == TRUE, {
-  #   req(prop_test_results())
-  #   print("updating prop tests...")
-  #   results <- prop_test_results()
-  #   output$prop_tests_results_ui <- renderUI({
-  #     list(
-  #       h3(i18n$t("Proportions tests")),
-  #       h4(i18n$t("Unmatched data")),
-  #       renderTable(results$unmatched),
-  #       h4(i18n$t("Matched data")),
-  #       renderTable(results$matched)
-  #     )
-  #   })
-  #   adv_analysis_flags()$prop_tests_shown <- TRUE
-  # })
-  
-  # this will trigger when the run_test button is clicked AND the mixed model checkbox is checked
-  # mixed_model_results_NULL <- eventReactive(input$run_test, {
-  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-  #     return()
-  #   }
-  #   req(reac_long_data())
-  #   print("triggered mixed model compute (null model)")
-  #   df_long_data_matched <- reac_long_data()$matched
-  #   result_null <-
-  #     try(mm_analysis_null_model(df_long = df_long_data_matched))
-  # 
-  #   return(result_null)
-  # 
-  # }, ignoreNULL = TRUE)
-  
-  # output$mixed_model_results_null_ui <- renderUI({
-  #   req(mixed_model_results_NULL())
-  #   list(
-  #     h3(i18n$t("Mixed model analyses")),
-  #     h4(i18n$t("Null model")),
-  #     renderPrint({
-  #       summary(mixed_model_results_NULL())
-  #     })
-  #   )
-  # })
 
-  # mixed_model_results_uniform <- eventReactive(input$run_test, {
-  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-  #     return()
-  #   }
-  #   req(reac_long_data(), mixed_model_results_NULL())
-  #   print("triggered mixed model compute (uniform model)")
-  #   df_long_data_matched <- reac_long_data()$matched
-  #   result_uniform <-
-  #     try(mm_analysis_uniform_model(df_long = df_long_data_matched, mm_null = mixed_model_results_NULL()))
-  #   
-  #   return(result_uniform)
-  #   
-  # }, ignoreNULL = TRUE)
-  
-  # output$mixed_model_results_uniform_ui <- renderUI({
-  #   req(mixed_model_results_uniform())
-  #   list(
-  #     h4(i18n$t("Uniform model")),
-  #     renderPrint({
-  #       summary(mixed_model_results_uniform())
-  #     })
-  #   )
-  # })
-  
-  # mixed_model_results_nonuniform <- eventReactive(input$run_test, {
-  #   if (is.null(input$check_mixed_model) | input$check_mixed_model == FALSE) {
-  #     return()
-  #   }
-  #   req(reac_long_data(), mixed_model_results_uniform())
-  #   print("triggered mixed model compute (nonuniform model)")
-  #   df_long_data_matched <- reac_long_data()$matched
-  #   result_nonuniform <-
-  #     try(mm_analysis_nonuniform_model(df_long = df_long_data_matched, mm_uniform = mixed_model_results_uniform()))
-  #   
-  #   return(result_nonuniform)
-  #   
-  # }, ignoreNULL = TRUE)
-  # 
-  # output$mixed_model_results_nonuniform_ui <- renderUI({
-  #   req(mixed_model_results_nonuniform())
-  #   list(
-  #     h4(i18n$t("Non-uniform model")),
-  #     renderPrint({
-  #       summary(mixed_model_results_nonuniform())
-  #     })
-  #   )
-  # })
   
   # Detect when user navigates to the advanced stats tab
   # Will warn the user about outdated results

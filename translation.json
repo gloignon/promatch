@@ -20,7 +20,7 @@
     {"en": "Done! The matching is complete. You can now download the matched data.", "fr": "Voilà! L'appariement est terminé. Vous pouvez télécharger les données appariées."},
     {"en": "Error", "fr": "Erreur"},
     {"en": "Error in", "fr": "Erreur dans: "},
-    {"en": "Error in matchit", "fr": "Erreur lors de l'appariement"},
+    {"en": "Error while matching.", "fr": "Erreur lors de l'appariement."},
     {"en": "No matched data available for download.", "fr": "Le résultat de l'appariement n'est pas disponibles pour le téléchargement."},
     {"en": "The treatment variable must have exactly two levels to perform matching.", "fr": "La variable de traitement doit avoir exactement deux niveaux pour effectuer le pairage."},
     {"en": "Select Exact matching variables (optional)", "fr": "Choisir les variables d'appariement exact (facultatif)"},

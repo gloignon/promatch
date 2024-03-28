@@ -1,40 +1,41 @@
 
 <h2>About the promatch Shiny App</h2>
     <p>
-        Promatch is a simple RShiny web app that allows you to access the basic functionalities of the powerful R package, <a href = "https://cran.r-project.org/web/packages/MatchIt/index.html">MatchIt</a>. This application is designed to simplify the process of statistical matching, making it accessible to both statisticians and non-statisticians alike. It was created by <a href = "https://professeurs.uqam.ca/professeur/loignon.guillaume/">Prof. Guillaume Loignon</a> from University of Quebec in Montreal.
+        Promatch is a web app that offers a simple point and click interface to the poweful MatchIt package for the R language. It can also help assess the quality of the matching and, in its advanced mode, perform DIF analysis using matched data.
     </p>
-    <p>
-        <strong>What is MatchIt?</strong><br>
-        MatchIt is a comprehensive package for the R statistical language, created by Daniel Ho and colleagues. It is used for pre-processing data for causal inference through statistical matching methods. It improves the quality of inference by reducing model dependence and bias in estimation. There is a 2011 paper describing the package in details, see also the recommendations described in an article by Ho et al. (2017), both are linked in the Bibliography below.
+     The promatch app was created by <a href = "https://professeurs.uqam.ca/professeur/loignon.guillaume/">Prof. Guillaume Loignon</a> from University of Quebec in Montreal. The <a href = "https://kosukeimai.github.io/MatchIt/index.html">MatchIt</a> package was created by Ho et al. (2011) and is now maintained and developped by Noah Greifer. The matching-based DIF analysis method implemented in promatch is based on the work of Chen et al. (2020). 
     </p>
      <p>
         <strong>Citations</strong><br>
-        If you use the promatch app for a publication, please cite the MatchIt paper in the Journal of Statistical Software (see Bibliography below). There is currently no paper describing promatch itself - you can use the following:
+        If you use the promatch app for a publication, please cite the relevant MatchIt paper(s).  There is currently no paper describing promatch itself - you can use the following:
         
         <blockquote>Loignon, G. (2023). ProMatch. https://gloignon.shinyapps.io/promatch/</blockquote>
-
     </p>  
     
 <h2>Help!</h2>
     <p>
-        <h3>How does it work?</h3>
+        <h3>Quick start guide</h3>
     </p>
         <ol>
           <li>Select your dataset. Click Browse, then select the .csv or .xlsx file on your computer. The file will upload. The file must be in a "wide" format, where each line (or row) corresponds to an individual, and each individual corresponds to a single line. The first row should be your variable names. Missing data should be indicated by NA. If a column is called "distance", it will be deleted.
           </li>
           <li>Select your variables. Fields will appear to let you select the treatment (grouping, or pairing) variable, covariates, and optional exact matching variables. The <strong>treatment variable</strong> needs to be a binary (dichotomous) variable; it is what divides your data into two groups for comparison. The <strong>covariates</strong> are variables that you suspect or know have an influence on the outcome but are not the primary focus of the study. These might include demographic factors like age and gender, or other background variables. In the context of matching, covariates are used to adjust the groups so that they are comparable on these background characteristics. The <strong>Exact Matching Variables</strong> are optional and used when you want to ensure that matched units are identical on certain key characteristics. When you use exact matching, the algorithm will only match units that have the exact same value on these variables.
           </li>
+          <li>If needed, edit the variable types. The Variable properties button will bring up a menu that lets you edit the variable types. This can be useful for instance if a nominal variable for school id is a number and was thus detected as continuous. Make the required adjustments there.</li>
           <li>Select the Matching Method</li>
           <li>Select the Distance Measure</li>
           <li>Click the Match button to start the matching process. A message will appear to confirm that it's working.</li>
           <li>Click the Download Matched CSV to download the resulting paired data. This button will be disabled unless there is actual pairing data available for download. A box will display information about the quality of the matching, this is a direct output from R's summary() function applied to the matching object.</li>
         </ol>
-        
+        <h3>Balance check</h3>
+        The balance check tab will display descriptive plots comparing the selected covariables before and after matching.
+        It also shows a Love plot comparing the standardized means (top part), as well as the variance ratio (bottom part) of the covariates before and after matching.
                 <h3>Advanced features</h3>
-        <p>The <i>Advanced</i> tab lets you transform and export your matched data in long format, in addition to performing simple statistical comparisons. Exporting in long format is particularly useful for performing statistical analyses on another platform that require this format. This is the case for multi-level models on JASP or jamovi.</p>
-        <p>To select your measurement variable(s), simply click on the name of the variable(s) in the Advanced tab's selection box. Your grouping variable and the variables used for matching will not be available in this list. A button then allows you to export and download your matched data in long format. In the resulting .csv file, measurement variables will be grouped under the "variable" column, and measures under the "score" column. It is therefore best not to already have these column names in your file if you intend to use the long format export function! Note: if you have a single measurement variable, this function will be of questionable use.</p>
-        <p><strong>Statistical tests.</strong>You can perform a t-test or a test of proportions on each selected measurement variable. The t-test will compare the average per group, for each selected measurement. The proportion test requires measurement variable data to be coded 1 or 0 (typically: pass or fail) and will compare the proportion of 1 versus 0 (typically: the proportion of passes or correct answers). The results are displayed as a table that can be copied and pasted. The t-test displays the degrees of freedom (df), the t-statistic and the p-value. The proportion test displays the proportion of individuals with the value 1 for each measure, as well as the p-value of the proportion test.</p>
-        <p>The long format is a data structure in which your measurement variables are grouped in two columns, the first column indicating the variable measured and the second column indicating the measurement. For example, in the case of items, the first column would contain the item identifier and the second column would contain the score. This means that in this format, there will be several observations or rows per individual (<a href = "https://en.wikipedia.org/wiki/Wide_and_narrow_data">see example on Wikipedia</a>).</p>
+        <p>The <i>Advanced</i> tab lets you transform and export your matched data in long format, in addition to comparing measurements across groups. Exporting in long format is particularly useful for performing statistical analyses on another platform that require this format. This is the case for multi-level models on JASP or jamovi. </p>
+        <p>To select your measurement variable(s), simply click on the name of the variable(s) in the left side of selection box. Please note that this tab currently works only for dichotomous (binary) measurements, e.g. success/failure. Only variables that have exactly two levels will appear in the selection box for measurement variables. Your grouping variable and the variables used for matching will also not be available in this list.</p>
+        <p>To download your long format data, click the relevant button that will activate the moment you select at least one measurement variable. In the resulting .csv file, measurement variables will be grouped under the "variable" column, and measures under the "score" column. It is therefore best not to already have these column names in your file if you intend to use the long format export function! Note: if you have a single measurement variable, this function will be of questionable use. The long format is a data structure in which your measurement variables are grouped in two columns, the first column indicating the variable measured and the second column indicating the measurement. For example, in the case of items, the first column would contain the item identifier and the second column would contain the score. This means that in this format, there will be several observations or rows per individual (<a href = "https://en.wikipedia.org/wiki/Wide_and_narrow_data">see example on Wikipedia</a>).</p>
+        <p>To perform statistical analyses, select at least one measurement variable and click Run. This will execute a proportion test for each measurement, on the unmatched and the matched data. The results will show the "success" rate in each group, with the p-value indicating statistical significance of the difference. This will also execute a sensitivity analysis on the matched data; the results show the unconfounded estimate (p-value when gamma is 1) and the largest gamma value for which the p-value was significant at the chosen level of significance. To function properly, the proportion test and sensitivity analysis requires measurement variable data to be coded 1 or 0 (typically: pass or fail) and will compare the proportion of 1 versus 0 (typically: the proportion of passes or correct answers).</p>
+        <p>Checking the include mixed model analyses box will add mixed model summaries to the results, reproducing in essence the pipeline used in Chen (2010) for DIF analysis. When mixed models are computedd, the sensitivity analyses will be applied to the predictions of the non-uniform mixed model instead of the "raw" data, again reproducing the method found in Chen (2010).</p>
 
 <h2>Bibliography</h2>
 <ul>
@@ -43,4 +44,5 @@
     </li>
     <li>Ho D, Imai K, King G, Stuart E (2011). “MatchIt: Nonparametric Preprocessing for Parametric Causal Inference.” Journal of Statistical Software, 42(8), 1–28. <a href = "https://www.jstatsoft.org/article/view/v042i08">doi:10.18637/jss.v042.i08</a>
     </li>
+    <li>Chen, M. Y., Liu, Y., & Zumbo, B. D. (2020). A propensity score method for investigating differential item functioning in performance assessment. Educational and Psychological Measurement, 80(3), 476–498. https://doi.org/10.1177/0013164419878861</li>
 </ul>

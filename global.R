@@ -70,7 +70,17 @@
 #   Progress bar pour analyses avancées
 #   Love plot en 2 plots (améliore un peu la hauteur d'affichage pour éviter que 
 #   les labels se chevauchent)
-
+# - 2024-03-18
+#   Gestion rudimentaire des erreurs dans le fit des modèles mixtes
+#   Mise à jour du about.html (anglais seulement)
+# - 2024-03-20
+#   Try autour de la fonction MatchIt.
+#   Fix hauteur affichage des love plots (maintenant il y a une estimation de la hauteur requise)
+# - 2024-03-28
+#   Correction bug affichage mah vars dans le rapport de matching
+#   Bug fix, analyse de sensibilité lorsqu'il y a 0 discrepant pairs
+#   Diverses corrections pour s'assurer que le résultat est identifique à la
+#   version "script"
 
 library(tidyverse)
 # library(ggrepel)
@@ -306,21 +316,11 @@ run_props_tests <- function(df_long_data, unique_levels) {
   return(df_props)
 }
 
-# This function will accept: 
-# a vector of response data, a vector specifying items,
-# a group membership (treatment) variable (e.g. group1, group2),
-# subclass: a variable that indicates pair in matching.
-# Optional parameters: max_gamma
-# for max gamma (default: 2 ) and gamma increase (default: .1)
-# It will apply sensitivity binary analysis and return a data frame with the upper 
-# and lower bounds, by item.
 sensitivity_analysis <- function(response, items = "response", group, subclass, max_gamma = 2, gamma_inc = .1) {
   # Create a data frame with the response data, the items and the treatment variable
   #  response = df_match_long$SCORE_DICHO
   #  items = df_match_long$ITEM
   # treatment = df_match_long$STATUT_LING
-  
-  df <- data.frame(response, items, group, subclass)
   
   # Count discrepant pairs
   df_discrepant_cnt <- count_discrepant_pairs(response, group, items, subclass)
@@ -329,22 +329,32 @@ sensitivity_analysis <- function(response, items = "response", group, subclass, 
   
   # Apply the sensitivity analysis, item by item, using lapply
   apply_binarysens <- function(row) {
+    if (row$n_discrepant_x == 0 | row$n_discrepant_y == 0) {
+      return(NULL)
+    }
     binarysens(row$n_discrepant_x, row$n_discrepant_y, Gamma = max_gamma, GammaInc = gamma_inc)
   }
   binarysens_results <-
     lapply(1:nrow(df_discrepant_cnt), function(i)
       apply_binarysens(df_discrepant_cnt[i,]))
   
-  # decode into a dataframe
-  df_results_binarysens <- map_df(binarysens_results, ~ .x$bounds)
+  # name the binarysens_results to match the items
+  names(binarysens_results) <- df_discrepant_cnt$item
   
-  # add the items column back to the df
-  df_results_binarysens$item = rep(
-    df_discrepant_cnt$item,
-    each = nrow(df_results_binarysens) / nrow(df_discrepant_cnt)
-  )
+  # loop across the items and bind the results when they are not NULL
+  df_results_binarysens <- do.call(bind_rows, lapply(names(binarysens_results), function(item_name) {
+    x <- binarysens_results[[item_name]]
+    if (!is.null(x$bounds)) {  # Ensure there's a bounds list to work with
+      df <- as.data.frame(x$bounds)  # Convert bounds to a data frame
+      df$item_name <- item_name  # Add a new column with the item name
+      return(df)
+    } else {
+      df <- data.frame(item_name = item_name)
+      return(df)
+    }
+  }))
   
-  names(df_results_binarysens) <- c("gamma", "lower_bound", "upper_bound", "measurement")
+  names(df_results_binarysens) <- c("gamma", "lower_bound", "upper_bound", "item")
   
   
   return(df_results_binarysens)
@@ -355,8 +365,19 @@ sensitivity_analysis <- function(response, items = "response", group, subclass, 
 # unconf_estimate : the upper_bound when gamma is exactly 1
 make_sens_annotations <- function(df, alpha = .05) {
   # for each item, return the bound when gamma is exactly 1
+  
+  # keep the NA items
+  na_items <- df %>% 
+    filter(is.na(upper_bound) & is.na(lower_bound)) %>% 
+    select(item)
+  
+  # now filter the df
+  df <- df %>% 
+    filter(!item %in% na_items$item)
+  
+  # find the unconf_estimate
   df_unconf <- df %>% 
-    group_by(measurement) %>% 
+    group_by(item) %>% 
     filter(gamma == 1) %>% 
     summarise(
       unconf_estimate = upper_bound
@@ -364,7 +385,7 @@ make_sens_annotations <- function(df, alpha = .05) {
   
   # find if, when gamma > 1, lower bound is larger than when gamma == 1
   df_increase_test <- df %>% 
-    group_by(measurement) %>% 
+    group_by(item) %>% 
     filter(gamma > 1) %>% 
     summarise(
       lb_next = min(lower_bound)
@@ -372,7 +393,7 @@ make_sens_annotations <- function(df, alpha = .05) {
   
   # merge
   df_unconf <- df_unconf %>% 
-    left_join(df_increase_test) %>% 
+    left_join(df_increase_test, by = "item") %>% 
     mutate(
       increase = lb_next > unconf_estimate
     )
@@ -380,26 +401,26 @@ make_sens_annotations <- function(df, alpha = .05) {
   # if the lower bound is increasing, then find the largest gamma at which the lower bound is below alpha
   if (df_unconf[1, "increase"] == TRUE) {
     df_max_sig <- df %>% 
-      group_by(measurement) %>% 
+      group_by(item) %>% 
       filter(lower_bound < alpha) %>% 
       summarise(
         max_sig_gamma = max(gamma)
       )
     df_p_at_max_gamma <- df %>% 
-      group_by(measurement) %>% 
+      group_by(item) %>% 
       filter(gamma == max(gamma)) %>% 
       summarise(
         p_at_max_gamma = max(lower_bound)
       )
   } else {
     df_max_sig <- df %>% 
-      group_by(measurement) %>% 
+      group_by(item) %>% 
       filter(upper_bound < alpha) %>% 
       summarise(
         max_sig_gamma = max(gamma)
       )
     df_p_at_max_gamma <- df %>% 
-      group_by(measurement) %>% 
+      group_by(item) %>% 
       filter(gamma == max(gamma)) %>% 
       summarise(
         p_at_max_gamma = max(upper_bound)
@@ -408,10 +429,15 @@ make_sens_annotations <- function(df, alpha = .05) {
   
   # merge 
   df_sens_annotations <- df_unconf %>% 
-    left_join(df_max_sig) %>% 
-    left_join(df_p_at_max_gamma) %>% 
-    select(measurement, unconf_estimate, max_sig_gamma) %>% 
+    left_join(df_max_sig, by = "item") %>% 
+    left_join(df_p_at_max_gamma, by = "item") %>% 
+    select(item, unconf_estimate, max_sig_gamma) %>% 
     mutate(unconf_estimate = format.pval(unconf_estimate, eps = .001))
+  
+  # let's add back the items in na_items
+  df_sens_annotations <- df_sens_annotations %>% 
+    bind_rows(na_items) %>% 
+    arrange(item)
   
   return(df_sens_annotations)
 }
@@ -533,3 +559,21 @@ mm_analysis_comparison <- function(mm_null, mm_uniform, mm_nonuniform = NULL) {
   return(lr_test)
 }
 
+# Estimates the required height for the Love plot
+estimate_lp_height <-
+  function(match_object,
+           baseline = 200,
+           mult = 30) {
+    cur_summary <- summary(match_object)
+    n_levels_top <- nrow(cur_summary[["sum.all"]])
+    n_levels_bottom <- length(colnames(match_object$X))
+    
+    height_top <- baseline + (n_levels_top * mult)
+    height_bottom <- baseline + (n_levels_bottom * mult)
+    
+    return(
+      data.frame(
+        top = height_top,
+        bottom = height_bottom
+    ))
+  }
